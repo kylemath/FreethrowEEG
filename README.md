@@ -28,3 +28,15 @@ cd FreethrowEEG
 source venv/bin/activate
 python test.py
 ```
+
+---
+
+# Plan
+
+KYLE -brainstorm Feb 25
+
+1. Sync with video of freethrows on tripod, video shooter and the basket
+2. Add prompts in the terminal to start and stop recording each shot
+3. Add prompts to enter success or failure.
+4. Start the video synced with EEG
+5. Might record all EEG spectra not just alpha incase its interesting.
