@@ -1,4 +1,4 @@
-# Muse Alpha Wave Recording System
+# Freethrow EEG - Record EEG during freethrow shooting
 
 This program finds a MUSE bluetooth device and then starts recording alpha power from it.
 
@@ -18,8 +18,8 @@ Only the first time:
 open a terminal window on mac and type:
 
 ```bash
-git clone http://github.com/kylemath/LucasProjectAlpha2025
-cd LucasProjectAlpha2025
+git clone http://github.com/kylemath/FreethrowEEG
+cd FreethrowEEG
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -30,7 +30,7 @@ Then in the future:
 open a terminal:
 
 ```bash
-cd LucasProjectAlpha2025
+cd FreethrowEEG
 source venv/bin/activate
 python test.py
 ```
