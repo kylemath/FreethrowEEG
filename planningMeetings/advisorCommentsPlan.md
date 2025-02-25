@@ -35,7 +35,7 @@ Your basic design is solid, but consider these additions:
 - Add 10 practice trials at the start of each session (not analyzed)
 - Include regular impedance photos (every 25 trials)
 - Record room temperature and humidity (affects sweat/impedance)
-- KYLE REAL ** Add brief rest EEG (2 min) at start/end of each session
+- KYLE REAL \*\* Add brief rest EEG (2 min) at start/end of each session
 - Consider shorter blocks (20 shots instead of 25) to reduce fatigue
 
 #### 4. Data Management Protocol
