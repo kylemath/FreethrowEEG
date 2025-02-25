@@ -40,3 +40,4 @@ KYLE -brainstorm Feb 25
 3. Add prompts to enter success or failure.
 4. Start the video synced with EEG
 5. Might record all EEG spectra not just alpha incase its interesting.
+6. Consider using a webpage interface we can access on a mobile phone instead of a python terminal on a computer.
