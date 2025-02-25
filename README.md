@@ -4,12 +4,6 @@ This program finds a MUSE bluetooth device and then starts recording alpha power
 
 ---
 
-Changelog:
-
-> Feb 25 - Kyle - Made Readme file, requirements.txt file, and github repo
-
----
-
 To install and run locally:
 
 The first time you setup the project you can clone the repo from github and then make a virtual environment to install all the toolboxes to isolate them from other parts of your computer.
