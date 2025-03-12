@@ -27,31 +27,30 @@ except Exception as e:
 # Initialize webcam with better error handling
 def initialize_webcam():
     print("Attempting to connect to webcam...")
-    cap = cv2.VideoCapture(0)
     
-    # Wait a bit to make sure the camera has time to initialize
-    time.sleep(1)
+    # Try different camera indices
+    for camera_index in [0, 1, 2]:
+        print(f"Trying camera index {camera_index}...")
+        cap = cv2.VideoCapture(camera_index)
+        
+        # Wait a bit to make sure the camera has time to initialize
+        time.sleep(1)
+        
+        if cap.isOpened():
+            # Try to read a test frame
+            ret, frame = cap.read()
+            if ret:
+                print(f"✅ Webcam connected and working on index {camera_index}!")
+                return cap
+            cap.release()
     
-    if not cap.isOpened():
-        print("\n❌ Could not access webcam. Please check the following:")
-        print("1. On macOS, go to System Settings > Privacy & Security > Camera")
-        print("2. Ensure your Terminal/IDE has permission to access the camera")
-        print("3. Make sure no other application is using the camera\n")
-        board.stop_stream()
-        board.release_session()
-        exit()
-    
-    # Try to read a test frame
-    ret, frame = cap.read()
-    if not ret:
-        print("\n❌ Could not read from webcam. Please check camera permissions.")
-        cap.release()
-        board.stop_stream()
-        board.release_session()
-        exit()
-    
-    print("✅ Webcam connected and working!")
-    return cap
+    print("\n❌ Could not access webcam. Please check the following:")
+    print("1. On macOS, go to System Settings > Privacy & Security > Camera")
+    print("2. Ensure your Terminal/IDE has permission to access the camera")
+    print("3. Make sure no other application is using the camera\n")
+    board.stop_stream()
+    board.release_session()
+    exit()
 
 # Initialize webcam
 cap = initialize_webcam()
