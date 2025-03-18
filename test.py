@@ -33,7 +33,6 @@ class FreethrowUI:
         self.PLOT_UPDATE_INTERVAL = 0.1
         self.SIGNAL_THRESHOLD = 500
         self.MIN_SIGNAL_QUALITY = 0.7
-        self.POWER_WINDOW_SIZE = 4  # Window size in seconds for band power calculation
         
         # Line noise frequency (Hz) - typically 50Hz in Europe/Asia, 60Hz in Americas
         self.LINE_NOISE_FREQ = 60  # Change to 50 if in Europe/Asia
@@ -368,7 +367,7 @@ class FreethrowUI:
                 circle.set_visible(True)
     
     def get_band_powers(self):
-        """Calculate power for each frequency band using center timepoint of window"""
+        """Calculate power for each frequency band"""
         data = self.board.get_board_data()
         if data.size == 0:
             return None
@@ -376,23 +375,9 @@ class FreethrowUI:
         eeg_channels = BoardShim.get_eeg_channels(self.board.board_id)
         sampling_rate = BoardShim.get_sampling_rate(self.board.board_id)
         
-        # Use window_size seconds of data for better frequency resolution
-        window_samples = int(sampling_rate * self.POWER_WINDOW_SIZE)
-        
-        # Get timestamps from board
-        timestamps = BoardShim.get_timestamp_channel(self.board.board_id)
-        timestamp_data = data[timestamps]
-        
-        # Ensure we have enough data
-        if data.shape[1] < window_samples:
-            return None, None
-            
-        # Get the last window_samples of data
-        data = data[:, -window_samples:]
-        timestamp_data = timestamp_data[-window_samples:]
-        
-        # Calculate center time point of the window
-        center_time = np.mean(timestamp_data)
+        # Process shorter chunks of data to maintain responsiveness
+        # Get last 1 second of data (sampling_rate points)
+        data = data[:, -min(sampling_rate, data.shape[1]):]
         
         band_powers = {band: [] for band in self.FREQ_BANDS.keys()}
         
@@ -430,10 +415,8 @@ class FreethrowUI:
                 continue
         
         # Only compute mean if we have data
-        powers = {band: np.mean(powers) if powers else 0 
-                 for band, powers in band_powers.items()}
-        
-        return center_time, powers
+        return {band: np.mean(powers) if powers else 0 
+               for band, powers in band_powers.items()}
     
     def data_collection_worker(self):
         """Continuously collect EEG data"""
@@ -448,12 +431,9 @@ class FreethrowUI:
             try:
                 current_time = time.time()
                 if current_time - last_update >= update_interval:
-                    result = self.get_band_powers()
-                    if result is not None:
-                        center_time, powers = result
-                        # Convert to elapsed time since start
-                        elapsed_time = center_time - collection_start_time
-                        self.data_queue.put((elapsed_time, powers))
+                    powers = self.get_band_powers()
+                    if powers is not None:
+                        self.data_queue.put((current_time - collection_start_time, powers))
                         last_update = current_time
                 else:
                     # Small sleep to prevent CPU overload but maintain responsiveness
