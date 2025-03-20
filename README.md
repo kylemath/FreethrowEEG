@@ -15,6 +15,7 @@ This program records your brain activity while shooting free throws, helping you
 ## Prerequisites
 
 1. Hardware Requirements:
+
    - MUSE EEG headband (charged and ready to pair)
    - Laptop with webcam
    - Basketball and hoop
@@ -30,12 +31,14 @@ This program records your brain activity while shooting free throws, helping you
 ### First Time Setup
 
 1. Clone the repository:
+
    ```bash
    git clone http://github.com/kylemath/FreethrowEEG
    cd FreethrowEEG
    ```
 
 2. Create and activate virtual environment:
+
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate  # On Mac/Linux
@@ -51,11 +54,13 @@ This program records your brain activity while shooting free throws, helping you
 ### Before Each Practice Session
 
 1. Ensure your MUSE headband is:
+
    - Fully charged
    - In pairing mode (light blinking)
    - Connected to your computer via Bluetooth
 
 2. Find a suitable location:
+
    - Clear space for free throw shooting
    - Good lighting for video recording
    - Stable surface for your laptop
@@ -71,15 +76,18 @@ This program records your brain activity while shooting free throws, helping you
 ### Running a Practice Session
 
 1. Start the program:
+
    ```bash
    python3 test.py
    ```
 
 2. Initial Setup:
+
    - Enter your name/ID when prompted
    - Enter the number of shots you plan to take
 
 3. For Each Shot:
+
    - Press SPACEBAR when ready to start
    - Wait for the ready beep (5 seconds)
    - You'll get 5 seconds to prepare (countdown shown)
@@ -95,6 +103,7 @@ This program records your brain activity while shooting free throws, helping you
 ### Data Storage
 
 Your practice data is automatically organized in this structure:
+
 ```
 data/
   └── [PlayerName]/              # Your personal folder
@@ -107,11 +116,13 @@ data/
 ## Troubleshooting
 
 1. If MUSE headband isn't connecting:
+
    - Ensure it's in pairing mode (light blinking)
    - Try removing and re-adding the device in your computer's Bluetooth settings
    - Make sure the headband is charged
 
 2. If webcam isn't working:
+
    - Check if another application is using the camera
    - Try closing and reopening the program
    - Ensure proper lighting in the room
@@ -127,10 +138,20 @@ For additional help or to report issues, please visit:
 ## Technical Details
 
 The program records:
+
 - Full EEG spectrum (delta, theta, alpha, beta, gamma waves)
 - Shot success/failure
 - Timing of each shot
 - Video feed (when enabled)
+
+### EEG Processing
+
+- EEG data is collected continuously from the MUSE headband
+- Frequency bands are extracted using bandpass filtering techniques
+- A 2.5-second analysis window is used for good frequency resolution
+- Power estimates are timestamped at the center of their analysis window
+- Line noise (50/60Hz) is removed using notch filtering
+- Signal quality is monitored in real-time
 
 ---
 
