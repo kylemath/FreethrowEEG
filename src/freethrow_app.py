@@ -8,6 +8,9 @@ import collections
 import queue
 import time
 import numpy as np
+import os
+import json
+from datetime import datetime
 
 from src.utils.logger import logger
 from src.utils.config import BUFFER_LENGTH, FREQ_BANDS, FRAME_WIDTH, FRAME_HEIGHT
@@ -32,6 +35,15 @@ class FreethrowApp:
         self.eeg_buffer = {band: collections.deque(maxlen=BUFFER_LENGTH) 
                           for band in FREQ_BANDS.keys()}
         self.time_buffer = collections.deque(maxlen=BUFFER_LENGTH)
+        
+        # Session data storage
+        self.session_data = {
+            'player_id': None,
+            'timestamp': None,
+            'shots': [],
+            'eeg_data': {band: [] for band in FREQ_BANDS.keys()},
+            'timestamps': []
+        }
         
         # Initialize components
         self.eeg_processor = EEGProcessor(self.data_queue)
@@ -116,6 +128,11 @@ class FreethrowApp:
             self.num_shots = num_shots
             self.setup_complete = True
             
+            # Initialize session data
+            self.session_data['player_id'] = player_id
+            self.session_data['timestamp'] = datetime.now().isoformat()
+            self.session_data['shots'] = []
+            
             logger.info(f"Session info - Player: {self.player_id}, Shots: {self.num_shots}")
             
             # Initialize visualizers
@@ -181,6 +198,11 @@ class FreethrowApp:
                     self.time_buffer.append(current_time)
                     for band, power in powers.items():
                         self.eeg_buffer[band].append(power)
+                    
+                    # Store data for saving
+                    self.session_data['timestamps'].append(current_time)
+                    for band, power in powers.items():
+                        self.session_data['eeg_data'][band].append(float(power))
                     
                     items_processed += 1
                     data_count += 1
@@ -271,13 +293,55 @@ class FreethrowApp:
             previous_result (str, optional): Result of the previous shot.
         """
         logger.info(f"Shot phase changed to {phase} ({current_shot}/{total_shots})")
+        
+        # Record shot result
+        if previous_result:
+            shot_data = {
+                'number': current_shot,
+                'result': previous_result,
+                'timestamp': datetime.now().isoformat()
+            }
+            self.session_data['shots'].append(shot_data)
+        
+        # Update interface
         if self.main_interface:
             self.main_interface.update_shot_controls(phase, current_shot, total_shots)
+        
+        # Handle session completion
+        if phase == "complete" or (current_shot >= total_shots and phase != "review"):
+            logger.info("Session complete, saving data and cleaning up...")
+            self.save_session_data()
+            self.cleanup()
+    
+    def save_session_data(self):
+        """Save session data to file."""
+        try:
+            # Create data directory if it doesn't exist
+            data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+            os.makedirs(data_dir, exist_ok=True)
+            
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"session_{self.player_id}_{timestamp}.json"
+            filepath = os.path.join(data_dir, filename)
+            
+            # Save data
+            with open(filepath, 'w') as f:
+                json.dump(self.session_data, f, indent=2)
+            
+            logger.info(f"Session data saved to {filepath}")
+            
+        except Exception as e:
+            logger.error(f"Error saving session data: {e}", exc_info=True)
     
     def cleanup(self):
         """Clean up resources."""
         logger.info("Cleaning up resources...")
         try:
+            # Save any remaining data
+            if self.setup_complete:
+                self.save_session_data()
+            
             # Cancel any active timers
             if hasattr(self, 'shot_manager') and self.shot_manager is not None:
                 self.shot_manager.cancel_timers()

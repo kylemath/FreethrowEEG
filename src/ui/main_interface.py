@@ -10,6 +10,54 @@ import threading
 from src.utils.config import FRAME_WIDTH, FRAME_HEIGHT
 from src.utils.logger import logger
 
+class CustomButton(Button):
+    """Custom button class with enhanced visual feedback."""
+    
+    def __init__(self, ax, label, color='lightgray'):
+        """Initialize custom button with enhanced styling."""
+        super().__init__(ax, label, color=color, hovercolor='0.9')
+        self.label.set_fontsize(10)
+        self.label.set_weight('bold')
+        self._active_color = color
+        self._inactive_color = '0.85'  # Light gray
+        self._pressed_color = '0.7'    # Darker gray for pressed state
+        self._is_pressed = False
+        self._is_active = True
+        
+    def set_active(self, active):
+        """Set button active/inactive state with visual feedback."""
+        self._is_active = active
+        if active:
+            self.color = self._active_color
+            self.hovercolor = '0.9'
+            self.label.set_alpha(1.0)
+        else:
+            self.color = self._inactive_color
+            self.hovercolor = self._inactive_color
+            self.label.set_alpha(0.5)
+        if self.ax:
+            self.ax.set_facecolor(self.color)
+            
+    def _pressed(self, event):
+        """Handle button press with visual feedback."""
+        if self._is_active and event.inaxes == self.ax:
+            self._is_pressed = True
+            self.ax.set_facecolor(self._pressed_color)
+            self.ax.figure.canvas.draw_idle()
+            
+    def _released(self, event):
+        """Handle button release with visual feedback."""
+        if self._is_pressed:
+            self._is_pressed = False
+            if self._is_active:
+                if event.inaxes == self.ax:
+                    self.ax.set_facecolor(self.hovercolor)
+                else:
+                    self.ax.set_facecolor(self.color)
+                self.ax.figure.canvas.draw_idle()
+                if event.inaxes == self.ax:
+                    self._clicked(event)
+
 class MainInterface:
     """Main interface for the FreethrowEEG application."""
     
@@ -52,17 +100,21 @@ class MainInterface:
             self.quality_ax = plt.subplot2grid((3, 3), (0, 2), rowspan=1)
             self.video_ax = plt.subplot2grid((3, 3), (1, 2), rowspan=1)
             
-            # Add control buttons
-            self.start_shot_button = Button(plt.axes([0.7, 0.15, 0.2, 0.08]), 'Start Shot')
+            # Add control buttons with custom styling
+            start_button_ax = plt.axes([0.7, 0.15, 0.2, 0.08])
+            self.start_shot_button = CustomButton(start_button_ax, 'Start Shot', color='lightblue')
             self.start_shot_button.on_clicked(self._start_shot_handler)
             
-            self.success_button = Button(plt.axes([0.7, 0.05, 0.1, 0.08]), 'Made ✓')
-            self.success_button.on_clicked(lambda x: self._mark_shot_handler(x, True))
-            self.success_button.set_active(False)
-            
-            self.fail_button = Button(plt.axes([0.8, 0.05, 0.1, 0.08]), 'Miss ✗')
+            # Swap the positions of success and fail buttons
+            fail_button_ax = plt.axes([0.7, 0.05, 0.1, 0.08])
+            self.fail_button = CustomButton(fail_button_ax, 'Miss ✗', color='#ffb3b3')  # Light red
             self.fail_button.on_clicked(lambda x: self._mark_shot_handler(x, False))
             self.fail_button.set_active(False)
+            
+            success_button_ax = plt.axes([0.8, 0.05, 0.1, 0.08])
+            self.success_button = CustomButton(success_button_ax, 'Made ✓', color='lightgreen')
+            self.success_button.on_clicked(lambda x: self._mark_shot_handler(x, True))
+            self.success_button.set_active(False)
             
             # Add status text
             self.status_text = plt.figtext(0.1, 0.05, 'Ready to start', size=10)
@@ -144,7 +196,12 @@ class MainInterface:
                 self.start_shot_button.set_active(True)
                 self.success_button.set_active(False)
                 self.fail_button.set_active(False)
-                result_text = "" if current_shot == 0 else "Shot MADE - " if phase == "made" else "Shot MISSED - "
+                # Handle previous shot result text
+                if current_shot == 0:
+                    result_text = ""
+                else:
+                    # Use the explicit phase value for determining the result text
+                    result_text = "Shot MADE - " if phase == "made" else "Shot MISSED - " if phase == "missed" else ""
                 self.update_status(f'{result_text}Press Start Shot when ready')
     
     def get_axes(self):

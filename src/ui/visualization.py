@@ -34,7 +34,6 @@ class EEGVisualizer:
                      'beta': 'purple', 'gamma': 'orange'}
         self.quality_circles = {}
         self.quality_text = {}
-        self.legend_created = False
     
     def setup_eeg_plot(self, ax):
         """
@@ -66,10 +65,8 @@ class EEGVisualizer:
         self.eeg_ax.set_ylabel('Power (log scale)')
         self.eeg_ax.set_title('EEG Frequency Band Powers')
         
-        # Only create the legend once
-        if not self.legend_created:
-            self.eeg_ax.legend()
-            self.legend_created = True
+        # Create the legend
+        self.eeg_ax.legend()
             
         self.eeg_ax.grid(True)
         self.eeg_ax.set_xlim(0, 10)
@@ -119,7 +116,7 @@ class EEGVisualizer:
         """
         updated_elements = []
         
-        # Update each frequency band line
+        # First update data in the line objects
         for band in FREQ_BANDS.keys():
             times = list(self.time_buffer)
             powers = list(self.eeg_buffer[band])
@@ -131,7 +128,6 @@ class EEGVisualizer:
             if len(times) > 1:  # Need at least 2 points to interpolate
                 # Ensure times are strictly increasing
                 try:
-                    # Log before unique to help debug
                     logger.debug(f"Time buffer before unique: min={min(times):.2f}, max={max(times):.2f}, len={len(times)}")
                     times, unique_idx = np.unique(times, return_index=True)
                     if len(unique_idx) != len(powers):
@@ -142,7 +138,6 @@ class EEGVisualizer:
                     
                     if len(times) > 0 and len(powers) > 0:
                         self.lines[band].set_data(times, powers)
-                        updated_elements.append(self.lines[band])
                         logger.debug(f"Updated {band} line with {len(times)} points")
                     else:
                         logger.warning(f"Empty data after unique operation: times={len(times)}, powers={len(powers)}")
@@ -151,12 +146,11 @@ class EEGVisualizer:
                     # As a fallback, try using the data directly
                     if len(times) == len(powers):
                         self.lines[band].set_data(times, powers)
-                        updated_elements.append(self.lines[band])
                         logger.debug(f"Fallback: Updated {band} line with {len(times)} direct points")
             else:
                 logger.debug(f"Not enough data points for {band}: {len(times)}")
         
-        # Adjust plot limits if we have data
+        # Now handle the axis limits and tick marks
         if len(self.time_buffer) > 0:
             try:
                 # Get current time
@@ -166,46 +160,72 @@ class EEGVisualizer:
                 # Always show from 0 to current time with a small padding
                 padding = max(5, current_time * 0.05)  # At least 5 seconds or 5% of total time
                 xlim = (0, current_time + padding)
-                self.eeg_ax.set_xlim(xlim)
-                self.elapsed_ax.set_xlim(xlim)
-                updated_elements.extend([self.eeg_ax, self.elapsed_ax])
-                logger.debug(f"Set x limits to {xlim}")
                 
-                # Generate appropriate tick marks - distribute evenly
-                if current_time > 0:
-                    # Calculate appropriate tick interval based on the time span
-                    if current_time < 30:
-                        tick_interval = 5  # 5-second intervals for shorter recordings
-                    elif current_time < 120:
-                        tick_interval = 15  # 15-second intervals for 30s-2min recordings
-                    elif current_time < 300:
-                        tick_interval = 30  # 30-second intervals for 2-5min recordings
-                    else:
-                        tick_interval = 60  # 1-minute intervals for longer recordings
-                    
-                    # Create evenly spaced ticks
-                    max_ticks = 10  # Limit number of ticks for readability
-                    ticks = np.linspace(0, current_time, min(max_ticks, int(current_time/tick_interval) + 1))
-                    
-                    # Update main axis (left)
-                    self.eeg_ax.set_xticks(ticks)
-                    if current_time > 60:  # More than 1 minute
-                        self.eeg_ax.set_xticklabels([f"{int(t/60)}:{int(t%60):02d}" for t in ticks])
-                        self.eeg_ax.set_xlabel('Time (min:sec)')
-                    else:
-                        self.eeg_ax.set_xticklabels([f"{int(t)}" for t in ticks])
-                        self.eeg_ax.set_xlabel('Time (sec)')
-                    
-                    # Update elapsed time axis (right)
-                    self.elapsed_ax.set_xticks(ticks)
-                    self.elapsed_ax.set_xticklabels([f"{int(t)}" for t in ticks])
-                    self.elapsed_ax.set_xlabel('Elapsed Time (sec)', labelpad=10)
-                    
-                    logger.debug(f"Updated tick marks with {len(ticks)} ticks")
-                    
-                    # Force update of tick labels
-                    # self.eeg_ax.figure.canvas.draw()
-                    # self.elapsed_ax.figure.canvas.draw()
+                # Calculate appropriate tick interval based on the time span
+                if current_time < 30:
+                    tick_interval = 5  # 5-second intervals for shorter recordings
+                elif current_time < 120:
+                    tick_interval = 15  # 15-second intervals for 30s-2min recordings
+                elif current_time < 300:
+                    tick_interval = 30  # 30-second intervals for 2-5min recordings
+                else:
+                    tick_interval = 60  # 1-minute intervals for longer recordings
+                
+                # Create evenly spaced ticks
+                max_ticks = 10  # Limit number of ticks for readability
+                ticks = np.linspace(0, current_time, min(max_ticks, int(current_time/tick_interval) + 1))
+                
+                # Clear and redraw both axes to reset tick marks
+                self.eeg_ax.clear()
+                self.elapsed_ax.clear()
+                
+                # Re-plot all frequency band lines and update line references
+                for band in FREQ_BANDS.keys():
+                    x_data = self.lines[band].get_xdata()
+                    y_data = self.lines[band].get_ydata()
+                    if len(x_data) > 0:
+                        new_line, = self.eeg_ax.plot(x_data, y_data, label=band, color=self.colors[band])
+                        # Update the reference to the new line object
+                        self.lines[band] = new_line
+                        # Add to updated elements
+                        updated_elements.append(self.lines[band])
+                
+                # Restore EEG axis formatting
+                self.eeg_ax.set_yscale('log')
+                self.eeg_ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{y:.1e}'))
+                self.eeg_ax.set_xlim(xlim)
+                self.eeg_ax.set_ylim(0.1, 1000)
+                self.eeg_ax.grid(True)
+                self.eeg_ax.set_title('EEG Frequency Band Powers')
+                
+                # Set tick marks for EEG axis
+                self.eeg_ax.set_xticks(ticks)
+                if current_time > 60:  # More than 1 minute
+                    self.eeg_ax.set_xticklabels([f"{int(t/60)}:{int(t%60):02d}" for t in ticks])
+                    self.eeg_ax.set_xlabel('Time (min:sec)')
+                else:
+                    self.eeg_ax.set_xticklabels([f"{int(t)}" for t in ticks])
+                    self.eeg_ax.set_xlabel('Time (sec)')
+                
+                # Create legend
+                self.eeg_ax.legend()
+                
+                # Configure elapsed time axis
+                self.elapsed_ax.set_xlim(xlim)
+                self.elapsed_ax.spines['right'].set_position(('outward', 60))
+                self.elapsed_ax.yaxis.set_visible(False)
+                self.elapsed_ax.set_xticks(ticks)
+                self.elapsed_ax.set_xticklabels([f"{int(t)}" for t in ticks])
+                self.elapsed_ax.set_xlabel('Elapsed Time (sec)', labelpad=10)
+                
+                # Add axes to updated elements
+                updated_elements.extend([self.eeg_ax, self.elapsed_ax])
+                
+                # Force update of tick labels
+                self.eeg_ax.figure.canvas.draw()
+                self.elapsed_ax.figure.canvas.draw()
+                
+                logger.debug(f"Updated axes with {len(ticks)} tick marks")
             except Exception as e:
                 logger.error(f"Error adjusting plot limits: {e}")
         else:
