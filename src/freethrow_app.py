@@ -43,6 +43,7 @@ class FreethrowApp:
         self.session_data = {
             'player_id': None,
             'timestamp': None,
+            'session_start_time': None,
             'shots': [],
             'video_path': None,
             'eeg_data': {
@@ -145,6 +146,7 @@ class FreethrowApp:
             # Initialize session data
             self.session_data['player_id'] = player_id
             self.session_data['timestamp'] = datetime.now().isoformat()
+            self.session_data['session_start_time'] = time.time()  # Add session start time
             self.session_data['shots'] = []
             
             # Set up video path and start recording
@@ -152,9 +154,14 @@ class FreethrowApp:
             os.makedirs(session_dir, exist_ok=True)
             self.session_data['video_path'] = os.path.join(session_dir, "session_recording.mp4")
             
-            # Start video recording
+            # Start EEG data collection first
+            self.eeg_processor.start_data_collection()
+            logger.info("Started EEG data collection")
+            
+            # Then start video recording
             if not self.camera.start_recording(self.session_data['video_path']):
                 raise RuntimeError("Failed to start video recording")
+            logger.info("Started video recording")
             
             logger.info(f"Session info - Player: {self.player_id}, Shots: {self.num_shots}")
             
@@ -162,7 +169,6 @@ class FreethrowApp:
             self.eeg_visualizer = EEGVisualizer(self.time_buffer, self.eeg_buffer)
             
             # Use the configured frame dimensions instead of querying the camera
-            # This avoids potential float conversion issues
             self.video_visualizer = VideoVisualizer(FRAME_HEIGHT, FRAME_WIDTH)
             
             # Initialize shot manager
@@ -178,8 +184,10 @@ class FreethrowApp:
                 on_animate=self.animate
             )
             
-            # Start data collection
-            self.start_data_collection()
+            # Start plot update thread
+            self.update_thread = threading.Thread(target=self.update_plots, daemon=True)
+            self.update_thread.start()
+            logger.info("Plot update thread started")
             
             # Show main interface
             self.main_interface.show()
@@ -189,26 +197,11 @@ class FreethrowApp:
             self.setup_complete = False
             self.cleanup()
     
-    def start_data_collection(self):
-        """Start data collection and plot update threads."""
-        logger.info("Starting data collection...")
-        
-        # Start EEG data collection
-        self.eeg_processor.start_data_collection()
-        
-        # Start plot update thread
-        self.update_thread = threading.Thread(target=self.update_plots, daemon=True)
-        self.update_thread.start()
-        logger.info("Plot update thread started")
-        
-        # Wait a moment for initial data
-        logger.info("Waiting for initial data...")
-        time.sleep(0.5)
-    
     def update_plots(self):
         """Update plots continuously."""
         logger.info("Starting plot update worker...")
         data_count = 0
+        last_log_time = time.time()
         
         while True:
             try:
@@ -222,27 +215,33 @@ class FreethrowApp:
                     for band, power in powers.items():
                         self.eeg_buffer[band].append(power)
                     
-                    # Store data for saving in original format
+                    # Always store data in the session data
                     self.session_data['eeg_data']['timestamps'].append(current_time)
                     for band, power in powers.items():
                         self.session_data['eeg_data']['bands'][band].append(float(power))
                     
-                    # If we're in a shot sequence, store the data in the appropriate phase buffer
+                    # Additionally store in shot-specific buffers if we're recording a shot
                     if self.shot_manager and self.shot_manager.recording_shot:
                         current_phase = self.shot_manager.current_recording_phase
-                        
-                        # Store the data in the appropriate phase buffer
                         if current_phase in ['pre_shot', 'during_shot', 'post_shot']:
                             for band, power in powers.items():
                                 self.current_shot_data[current_phase][band].append(float(power))
                     
                     data_count += 1
                     
-                    # Log data points periodically for debugging
-                    if data_count % 100 == 0 and self.shot_manager and self.shot_manager.recording_shot:
-                        logger.debug(f"Current data points - Pre: {len(next(iter(self.current_shot_data['pre_shot'].values())))}, "
-                                   f"During: {len(next(iter(self.current_shot_data['during_shot'].values())))}, "
-                                   f"Post: {len(next(iter(self.current_shot_data['post_shot'].values())))}")
+                    # Log data collection stats every 5 seconds
+                    current_time = time.time()
+                    if current_time - last_log_time >= 5:
+                        total_samples = len(self.session_data['eeg_data']['timestamps'])
+                        session_duration = current_time - self.session_data.get('session_start_time', current_time)
+                        sample_rate = total_samples / session_duration if session_duration > 0 else 0
+                        logger.info(f"Session stats - Total samples: {total_samples}, Duration: {session_duration:.1f}s, Rate: {sample_rate:.1f} Hz")
+                        
+                        if self.shot_manager and self.shot_manager.recording_shot:
+                            logger.debug(f"Current shot data points - Pre: {len(next(iter(self.current_shot_data['pre_shot'].values())))}, "
+                                       f"During: {len(next(iter(self.current_shot_data['during_shot'].values())))}, "
+                                       f"Post: {len(next(iter(self.current_shot_data['post_shot'].values())))}")
+                        last_log_time = current_time
                 
                 # Small sleep to prevent CPU overload
                 time.sleep(0.001)
