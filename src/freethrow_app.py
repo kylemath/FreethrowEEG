@@ -13,7 +13,10 @@ import json
 from datetime import datetime
 
 from src.utils.logger import logger
-from src.utils.config import BUFFER_LENGTH, FREQ_BANDS, FRAME_WIDTH, FRAME_HEIGHT
+from src.utils.config import (
+    BUFFER_LENGTH, FREQ_BANDS, FRAME_WIDTH, FRAME_HEIGHT,
+    PRE_SHOT_DURATION, SHOT_DURATION, POST_SHOT_DURATION
+)
 from src.eeg.processor import EEGProcessor
 from src.video.camera import CameraManager
 from src.ui.setup_dialog import SetupDialog
@@ -36,13 +39,24 @@ class FreethrowApp:
                           for band in FREQ_BANDS.keys()}
         self.time_buffer = collections.deque(maxlen=BUFFER_LENGTH)
         
-        # Session data storage
+        # Session data storage with original format
         self.session_data = {
             'player_id': None,
             'timestamp': None,
             'shots': [],
-            'eeg_data': {band: [] for band in FREQ_BANDS.keys()},
-            'timestamps': []
+            'video_path': None,
+            'eeg_data': {
+                'timestamps': [],
+                'bands': {band: [] for band in FREQ_BANDS.keys()}
+            }
+        }
+        
+        # Shot timing data
+        self.shot_start_time = None
+        self.current_shot_data = {
+            'pre_shot': {band: [] for band in FREQ_BANDS.keys()},
+            'during_shot': {band: [] for band in FREQ_BANDS.keys()},
+            'post_shot': {band: [] for band in FREQ_BANDS.keys()}
         }
         
         # Initialize components
@@ -133,6 +147,15 @@ class FreethrowApp:
             self.session_data['timestamp'] = datetime.now().isoformat()
             self.session_data['shots'] = []
             
+            # Set up video path and start recording
+            session_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', f"session_{player_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+            os.makedirs(session_dir, exist_ok=True)
+            self.session_data['video_path'] = os.path.join(session_dir, "session_recording.mp4")
+            
+            # Start video recording
+            if not self.camera.start_recording(self.session_data['video_path']):
+                raise RuntimeError("Failed to start video recording")
+            
             logger.info(f"Session info - Player: {self.player_id}, Shots: {self.num_shots}")
             
             # Initialize visualizers
@@ -191,7 +214,7 @@ class FreethrowApp:
                 # Process any new data
                 items_processed = 0
                 while not self.data_queue.empty():
-                    # Get data from the queue - now the timestamp is the center of the analysis window
+                    # Get data from the queue
                     current_time, powers = self.data_queue.get()
                     
                     # Store the timestamp and power values in their respective buffers
@@ -199,19 +222,30 @@ class FreethrowApp:
                     for band, power in powers.items():
                         self.eeg_buffer[band].append(power)
                     
-                    # Store data for saving
-                    self.session_data['timestamps'].append(current_time)
+                    # Store data for saving in original format
+                    self.session_data['eeg_data']['timestamps'].append(current_time)
                     for band, power in powers.items():
-                        self.session_data['eeg_data'][band].append(float(power))
+                        self.session_data['eeg_data']['bands'][band].append(float(power))
+                    
+                    # If we're in a shot sequence, store the data in the appropriate phase buffer
+                    if self.shot_manager and self.shot_manager.recording_shot:
+                        elapsed = time.time() - self.shot_manager.phase_start_time
+                        if elapsed <= PRE_SHOT_DURATION:
+                            phase = 'pre_shot'
+                        elif elapsed <= PRE_SHOT_DURATION + SHOT_DURATION:
+                            phase = 'during_shot'
+                        else:
+                            phase = 'post_shot'
+                            
+                        for band, power in powers.items():
+                            self.current_shot_data[phase][band].append(float(power))
                     
                     items_processed += 1
                     data_count += 1
                 
                 if items_processed > 0:
                     logger.info(f"Processed {items_processed} new data points (total: {data_count})")
-                    logger.info(f"Buffer sizes: time={len(self.time_buffer)}, delta={len(self.eeg_buffer['delta'])}")
                 
-                # Small sleep to prevent CPU overload
                 time.sleep(0.001)
                 
             except Exception as e:
@@ -283,25 +317,40 @@ class FreethrowApp:
             return []
     
     def handle_shot_phase_change(self, phase, current_shot, total_shots, previous_result=None):
-        """
-        Handle shot phase changes.
-        
-        Args:
-            phase (str): New shot phase.
-            current_shot (int): Current shot number.
-            total_shots (int): Total number of shots.
-            previous_result (str, optional): Result of the previous shot.
-        """
+        """Handle shot phase changes."""
         logger.info(f"Shot phase changed to {phase} ({current_shot}/{total_shots})")
         
         # Record shot result
         if previous_result:
             shot_data = {
-                'number': current_shot,
-                'result': previous_result,
-                'timestamp': datetime.now().isoformat()
+                "shot_id": current_shot,
+                "timestamp": time.time(),
+                "success": previous_result == "made",
+                "eeg_data": {
+                    "pre_shot": self.current_shot_data['pre_shot'],
+                    "during_shot": self.current_shot_data['during_shot'],
+                    "post_shot": self.current_shot_data['post_shot']
+                },
+                "video_timestamps": {
+                    "start": self.shot_start_time,
+                    "end": time.time()
+                },
+                "duration": time.time() - self.shot_start_time if self.shot_start_time else None,
+                "video_path": self.session_data['video_path']
             }
             self.session_data['shots'].append(shot_data)
+            
+            # Reset shot data buffers
+            self.current_shot_data = {
+                'pre_shot': {band: [] for band in FREQ_BANDS.keys()},
+                'during_shot': {band: [] for band in FREQ_BANDS.keys()},
+                'post_shot': {band: [] for band in FREQ_BANDS.keys()}
+            }
+            self.shot_start_time = None
+        
+        # If starting a new shot recording, set the start time
+        if phase == "recording":
+            self.shot_start_time = time.time()
         
         # Update interface
         if self.main_interface:
@@ -310,26 +359,24 @@ class FreethrowApp:
         # Handle session completion
         if phase == "complete" or (current_shot >= total_shots and phase != "review"):
             logger.info("Session complete, saving data and cleaning up...")
+            # Stop video recording before saving data
+            self.camera.stop_recording()
             self.save_session_data()
             self.cleanup()
     
     def save_session_data(self):
         """Save session data to file."""
         try:
-            # Create data directory if it doesn't exist
-            data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
-            os.makedirs(data_dir, exist_ok=True)
+            # Create session directory if it doesn't exist
+            session_dir = os.path.dirname(self.session_data['video_path'])
+            os.makedirs(session_dir, exist_ok=True)
             
-            # Generate filename with timestamp
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"session_{self.player_id}_{timestamp}.json"
-            filepath = os.path.join(data_dir, filename)
-            
-            # Save data
-            with open(filepath, 'w') as f:
+            # Save session data
+            data_file = os.path.join(session_dir, "session_data.json")
+            with open(data_file, 'w') as f:
                 json.dump(self.session_data, f, indent=2)
             
-            logger.info(f"Session data saved to {filepath}")
+            logger.info(f"Session data saved to {data_file}")
             
         except Exception as e:
             logger.error(f"Error saving session data: {e}", exc_info=True)
@@ -337,34 +384,70 @@ class FreethrowApp:
     def cleanup(self):
         """Clean up resources."""
         logger.info("Cleaning up resources...")
+        
+        # Use a list to track any errors during cleanup
+        cleanup_errors = []
+        
         try:
+            # First stop any ongoing processes
+            if hasattr(self, 'shot_manager') and self.shot_manager is not None:
+                try:
+                    self.shot_manager.cancel_timers()
+                except Exception as e:
+                    cleanup_errors.append(f"Error canceling timers: {e}")
+            
+            # Stop video recording before closing interface (to ensure all frames are saved)
+            if hasattr(self, 'camera') and self.camera is not None:
+                try:
+                    self.camera.stop_recording()
+                except Exception as e:
+                    cleanup_errors.append(f"Error stopping video recording: {e}")
+            
             # Save any remaining data
             if self.setup_complete:
-                self.save_session_data()
+                try:
+                    self.save_session_data()
+                except Exception as e:
+                    cleanup_errors.append(f"Error saving session data: {e}")
             
-            # Cancel any active timers
-            if hasattr(self, 'shot_manager') and self.shot_manager is not None:
-                self.shot_manager.cancel_timers()
-            
-            # Stop EEG processor
-            if hasattr(self, 'eeg_processor') and self.eeg_processor is not None:
-                self.eeg_processor.stop()
-            
-            # Release camera
-            if hasattr(self, 'camera') and self.camera is not None:
-                self.camera.release()
-            
-            # Close main interface
+            # Close the interface before stopping data collection
             if hasattr(self, 'main_interface') and self.main_interface is not None:
-                self.main_interface.close()
+                try:
+                    self.main_interface.close()
+                except Exception as e:
+                    cleanup_errors.append(f"Error closing interface: {e}")
+            
+            # Stop data collection
+            if hasattr(self, 'eeg_processor') and self.eeg_processor is not None:
+                try:
+                    self.eeg_processor.stop()
+                except Exception as e:
+                    cleanup_errors.append(f"Error stopping EEG processor: {e}")
+            
+            # Release camera last
+            if hasattr(self, 'camera') and self.camera is not None:
+                try:
+                    self.camera.release()
+                except Exception as e:
+                    cleanup_errors.append(f"Error releasing camera: {e}")
             
             # Close all matplotlib figures
-            logger.debug("Closing all figures")
-            plt.close('all')
+            try:
+                plt.close('all')
+            except Exception as e:
+                cleanup_errors.append(f"Error closing matplotlib figures: {e}")
             
+            # Log any errors that occurred during cleanup
+            if cleanup_errors:
+                logger.warning("Some non-critical errors occurred during cleanup:")
+                for error in cleanup_errors:
+                    logger.warning(error)
+            else:
+                logger.info("Cleanup completed successfully")
+                
         except Exception as e:
-            logger.error(f"Error during cleanup: {e}", exc_info=True)
-            # Try to force matplotlib to close all figures
+            logger.error(f"Critical error during cleanup: {e}", exc_info=True)
+            # Try one last time to close all figures
             try:
                 plt.close('all')
             except:

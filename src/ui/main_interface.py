@@ -215,8 +215,17 @@ class MainInterface:
     
     def close(self):
         """Close the interface."""
-        if self.animation is not None:
-            self.animation.event_source.stop()
+        try:
+            if hasattr(self, 'animation') and self.animation is not None:
+                if hasattr(self.animation, 'event_source') and self.animation.event_source is not None:
+                    self.animation.event_source.stop()
+                self.animation = None
+        except Exception as e:
+            logger.warning(f"Non-critical error while stopping animation: {e}")
         
-        if hasattr(self, 'fig') and self.fig is not None:
-            plt.close(self.fig) 
+        try:
+            if hasattr(self, 'fig') and self.fig is not None:
+                plt.close(self.fig)
+                self.fig = None
+        except Exception as e:
+            logger.warning(f"Non-critical error while closing figure: {e}") 
