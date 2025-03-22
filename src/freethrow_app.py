@@ -209,10 +209,10 @@ class FreethrowApp:
         """Update plots continuously."""
         logger.info("Starting plot update worker...")
         data_count = 0
+        
         while True:
             try:
                 # Process any new data
-                items_processed = 0
                 while not self.data_queue.empty():
                     # Get data from the queue
                     current_time, powers = self.data_queue.get()
@@ -229,28 +229,27 @@ class FreethrowApp:
                     
                     # If we're in a shot sequence, store the data in the appropriate phase buffer
                     if self.shot_manager and self.shot_manager.recording_shot:
-                        elapsed = time.time() - self.shot_manager.phase_start_time
-                        if elapsed <= PRE_SHOT_DURATION:
-                            phase = 'pre_shot'
-                        elif elapsed <= PRE_SHOT_DURATION + SHOT_DURATION:
-                            phase = 'during_shot'
-                        else:
-                            phase = 'post_shot'
-                            
-                        for band, power in powers.items():
-                            self.current_shot_data[phase][band].append(float(power))
+                        current_phase = self.shot_manager.current_recording_phase
+                        
+                        # Store the data in the appropriate phase buffer
+                        if current_phase in ['pre_shot', 'during_shot', 'post_shot']:
+                            for band, power in powers.items():
+                                self.current_shot_data[current_phase][band].append(float(power))
                     
-                    items_processed += 1
                     data_count += 1
+                    
+                    # Log data points periodically for debugging
+                    if data_count % 100 == 0 and self.shot_manager and self.shot_manager.recording_shot:
+                        logger.debug(f"Current data points - Pre: {len(next(iter(self.current_shot_data['pre_shot'].values())))}, "
+                                   f"During: {len(next(iter(self.current_shot_data['during_shot'].values())))}, "
+                                   f"Post: {len(next(iter(self.current_shot_data['post_shot'].values())))}")
                 
-                if items_processed > 0:
-                    logger.info(f"Processed {items_processed} new data points (total: {data_count})")
-                
+                # Small sleep to prevent CPU overload
                 time.sleep(0.001)
                 
             except Exception as e:
-                logger.error(f"Error in plot update loop: {e}", exc_info=True)
-                time.sleep(0.1)
+                logger.error(f"Error in plot update worker: {e}")
+                time.sleep(0.1)  # Add delay on error to prevent spam
     
     def animate(self, frame):
         """
@@ -320,16 +319,27 @@ class FreethrowApp:
         """Handle shot phase changes."""
         logger.info(f"Shot phase changed to {phase} ({current_shot}/{total_shots})")
         
-        # Record shot result
+        # If starting a new shot recording, set the start time and reset data buffers
+        if phase == "recording":
+            self.shot_start_time = time.time()
+            # Reset shot data buffers before starting new recording
+            self.current_shot_data = {
+                'pre_shot': {band: [] for band in FREQ_BANDS.keys()},
+                'during_shot': {band: [] for band in FREQ_BANDS.keys()},
+                'post_shot': {band: [] for band in FREQ_BANDS.keys()}
+            }
+        
+        # Record shot result and save data
         if previous_result:
+            logger.info(f"Saving shot {current_shot} data (Result: {previous_result})")
             shot_data = {
                 "shot_id": current_shot,
                 "timestamp": time.time(),
                 "success": previous_result == "made",
                 "eeg_data": {
-                    "pre_shot": self.current_shot_data['pre_shot'],
-                    "during_shot": self.current_shot_data['during_shot'],
-                    "post_shot": self.current_shot_data['post_shot']
+                    "pre_shot": {band: list(data) for band, data in self.current_shot_data['pre_shot'].items()},
+                    "during_shot": {band: list(data) for band, data in self.current_shot_data['during_shot'].items()},
+                    "post_shot": {band: list(data) for band, data in self.current_shot_data['post_shot'].items()}
                 },
                 "video_timestamps": {
                     "start": self.shot_start_time,
@@ -338,19 +348,14 @@ class FreethrowApp:
                 "duration": time.time() - self.shot_start_time if self.shot_start_time else None,
                 "video_path": self.session_data['video_path']
             }
-            self.session_data['shots'].append(shot_data)
             
-            # Reset shot data buffers
-            self.current_shot_data = {
-                'pre_shot': {band: [] for band in FREQ_BANDS.keys()},
-                'during_shot': {band: [] for band in FREQ_BANDS.keys()},
-                'post_shot': {band: [] for band in FREQ_BANDS.keys()}
-            }
+            # Log data points collected for debugging
+            logger.info(f"Data points collected - Pre: {len(next(iter(self.current_shot_data['pre_shot'].values())))}, "
+                       f"During: {len(next(iter(self.current_shot_data['during_shot'].values())))}, "
+                       f"Post: {len(next(iter(self.current_shot_data['post_shot'].values())))}")
+            
+            self.session_data['shots'].append(shot_data)
             self.shot_start_time = None
-        
-        # If starting a new shot recording, set the start time
-        if phase == "recording":
-            self.shot_start_time = time.time()
         
         # Update interface
         if self.main_interface:
