@@ -14,10 +14,182 @@ from pathlib import Path
 import queue
 import collections
 from matplotlib.animation import FuncAnimation
+import pywt  # For wavelet denoising
+from sklearn.decomposition import FastICA  # For ICA-based artifact removal
+from session_manager import Session
 
 # Signal quality thresholds
 SIGNAL_THRESHOLD = 500  # Maximum acceptable signal value
 MIN_SIGNAL_QUALITY = 0.7  # Minimum proportion of good data points
+
+class SignalProcessor:
+    def __init__(self):
+        self.adaptive_thresholds = AdaptiveThresholds()
+        self.noise_reduction = PhaseSpecificNoiseReduction()
+        self.board = None
+        self.noise_reduction.set_signal_processor(self)
+        
+    def set_board(self, board):
+        """Set the board reference for sampling rate access"""
+        self.board = board
+        self.noise_reduction.set_board(board)
+        
+    def apply_wavelet_denoising(self, data):
+        """Apply wavelet denoising with soft thresholding"""
+        wavelet = 'db4'  # Daubechies 4 wavelet
+        level = 4  # Decomposition level
+        
+        # Perform wavelet denoising
+        coeffs = pywt.wavedec(data, wavelet, level=level)
+        # Apply soft thresholding
+        threshold = np.median(np.abs(coeffs[-1])) / 0.6745
+        coeffs_thresholded = [pywt.threshold(c, threshold, mode='soft') for c in coeffs]
+        # Reconstruct signal
+        return pywt.waverec(coeffs_thresholded, wavelet)
+    
+    def detect_emg_artifacts(self, data, threshold=0.75):
+        """Detect EMG artifacts using high-frequency power"""
+        if not self.board:
+            return np.zeros_like(data, dtype=bool)
+            
+        # Compute high frequency power (>30 Hz)
+        sampling_rate = BoardShim.get_sampling_rate(self.board.board_id)
+        high_freq_data = data.copy()
+        DataFilter.perform_bandpass(
+            high_freq_data,
+            sampling_rate,
+            30,
+            50,
+            4,
+            FilterTypes.BUTTERWORTH.value,
+            0
+        )
+        power = np.abs(high_freq_data)
+        return power > (threshold * np.median(power))
+    
+    def apply_ica_cleaning(self, data, emg_mask):
+        """Apply ICA-based artifact removal"""
+        if not self.board:
+            return data
+            
+        sampling_rate = BoardShim.get_sampling_rate(self.board.board_id)
+        if len(data) < 2 * sampling_rate:  # Need enough data points
+            return data
+            
+        # Apply ICA
+        ica = FastICA(n_components=4)  # 4 components for 4 channels
+        components = ica.fit_transform(data.reshape(-1, 1))
+        
+        # Identify artifact components (high correlation with EMG mask)
+        artifact_idx = []
+        for i in range(components.shape[1]):
+            corr = np.corrcoef(components[:, i], emg_mask)[0, 1]
+            if abs(corr) > 0.3:  # Correlation threshold
+                artifact_idx.append(i)
+                
+        # Reconstruct without artifact components
+        clean_data = data.copy()
+        if artifact_idx:
+            components[:, artifact_idx] = 0
+            clean_data = ica.inverse_transform(components)
+            
+        return clean_data.flatten()
+
+class AdaptiveThresholds:
+    def __init__(self):
+        self.baseline_beta = None
+        self.adjustment_rate = 0.1
+        
+    def update_thresholds(self, new_data):
+        if self.baseline_beta is None:
+            self.baseline_beta = np.median(new_data)
+        else:
+            # Adaptive adjustment
+            self.baseline_beta = (1 - self.adjustment_rate) * self.baseline_beta + \
+                               self.adjustment_rate * np.median(new_data)
+        return self.baseline_beta
+
+class PhaseSpecificNoiseReduction:
+    def __init__(self):
+        self.pre_shot_threshold = 0.6  # More permissive
+        self.shot_threshold = 0.8      # Stricter
+        self.post_threshold = 0.7      # Balanced
+        self.board = None
+        self.signal_processor = None
+        
+    def set_board(self, board):
+        """Set the board reference for sampling rate access"""
+        self.board = board
+        
+    def set_signal_processor(self, signal_processor):
+        """Set reference to signal processor for access to EMG detection"""
+        self.signal_processor = signal_processor
+        
+    def process_phase(self, data, phase):
+        if not self.board:
+            return data
+            
+        if phase == 'pre_shot':
+            # Prioritize preserving brain signals
+            return self._conservative_cleaning(data)
+        elif phase == 'shot':
+            # Aggressive EMG rejection
+            return self._aggressive_cleaning(data)
+        else:
+            # Balanced approach
+            return self._standard_cleaning(data)
+            
+    def _conservative_cleaning(self, data):
+        """Gentle cleaning to preserve brain signals"""
+        # Apply minimal filtering
+        filtered = data.copy()
+        sampling_rate = BoardShim.get_sampling_rate(self.board.board_id)
+        DataFilter.perform_bandpass(
+            filtered,
+            sampling_rate,
+            1,
+            50,
+            2,  # Lower order
+            FilterTypes.BUTTERWORTH.value,
+            0
+        )
+        return filtered
+        
+    def _aggressive_cleaning(self, data):
+        """Strong artifact rejection"""
+        if not self.signal_processor:
+            return self._standard_cleaning(data)
+            
+        # Apply more aggressive filtering
+        filtered = data.copy()
+        sampling_rate = BoardShim.get_sampling_rate(self.board.board_id)
+        DataFilter.perform_bandpass(
+            filtered,
+            sampling_rate,
+            1,
+            50,
+            6,  # Higher order
+            FilterTypes.BUTTERWORTH.value,
+            0
+        )
+        # Additional EMG rejection
+        emg_mask = self.signal_processor.detect_emg_artifacts(filtered, self.shot_threshold)
+        return self.signal_processor.apply_ica_cleaning(filtered, emg_mask)
+        
+    def _standard_cleaning(self, data):
+        """Balanced approach"""
+        filtered = data.copy()
+        sampling_rate = BoardShim.get_sampling_rate(self.board.board_id)
+        DataFilter.perform_bandpass(
+            filtered,
+            sampling_rate,
+            1,
+            50,
+            4,  # Standard order
+            FilterTypes.BUTTERWORTH.value,
+            0
+        )
+        return filtered
 
 class FreethrowUI:
     def __init__(self):
@@ -76,6 +248,9 @@ class FreethrowUI:
         
         # Add animation attribute
         self.animation = None
+        
+        # Add signal processing components
+        self.signal_processor = SignalProcessor()
         
         # Start setup dialog
         self.show_setup_dialog()
@@ -143,6 +318,9 @@ class FreethrowUI:
                 raise ConnectionError("Board preparation failed")
             self.board.start_stream()
             
+            # Set board reference in signal processor
+            self.signal_processor.set_board(self.board)
+            
             self.muse_status.set_text('✓ MUSE Connected')
             self.muse_status.set_color('green')
             self.muse_button.label.set_text('Connected')
@@ -203,11 +381,15 @@ class FreethrowUI:
     
     def start_session(self, event):
         """Start the main session"""
-        self.player_id = self.player_box.text.strip()
+        self.player_id = self.player_box.text.strip()  # Get exact ID as entered
         self.num_shots = int(self.shots_box.text.strip())
         self.setup_complete = True
         plt.close(self.setup_fig)
         self.show_main_interface()
+        
+        # Create session directory
+        session_dir = Path("data") / self.player_id
+        session_dir.mkdir(parents=True, exist_ok=True)
         
         # Clear any old data
         self.time_buffer.clear()
@@ -367,7 +549,7 @@ class FreethrowUI:
                 circle.set_visible(True)
     
     def get_band_powers(self):
-        """Calculate power for each frequency band"""
+        """Calculate power for each frequency band with enhanced noise reduction"""
         data = self.board.get_board_data()
         if data.size == 0:
             return None
@@ -387,8 +569,19 @@ class FreethrowUI:
                 continue
             
             try:
+                # Enhanced noise reduction based on current phase
+                if self.shot_phase == "ready":
+                    cleaned_data = self.signal_processor.noise_reduction.process_phase(
+                        channel_data, 'pre_shot')
+                elif self.shot_phase == "recording":
+                    cleaned_data = self.signal_processor.noise_reduction.process_phase(
+                        channel_data, 'shot')
+                else:
+                    cleaned_data = self.signal_processor.noise_reduction.process_phase(
+                        channel_data, 'post')
+                
                 # Apply notch filter to remove line noise (50/60 Hz)
-                notch_data = channel_data.copy()
+                notch_data = cleaned_data.copy()
                 DataFilter.remove_environmental_noise(
                     notch_data,
                     sampling_rate,
@@ -410,13 +603,48 @@ class FreethrowUI:
                     power = np.mean(np.abs(band_data))
                     if not np.isnan(power):
                         band_powers[band_name].append(power)
+                        
+                # Update adaptive thresholds
+                if band_name == 'beta':
+                    self.signal_processor.adaptive_thresholds.update_thresholds(power)
+                    
             except Exception as e:
                 print(f"Error processing channel {ch}: {e}")
                 continue
         
         # Only compute mean if we have data
-        return {band: np.mean(powers) if powers else 0 
-               for band, powers in band_powers.items()}
+        powers = {band: np.mean(powers) if powers else 0 
+                 for band, powers in band_powers.items()}
+        
+        # Add tension feedback
+        if 'beta' in powers and self.signal_processor.adaptive_thresholds.baseline_beta:
+            tension_color = self.get_tension_feedback(
+                powers['beta'],
+                self.signal_processor.adaptive_thresholds.baseline_beta
+            )
+            self.update_tension_indicator(tension_color)
+            
+        return powers
+    
+    def get_tension_feedback(self, beta_power, baseline):
+        """Get tension feedback color based on beta power"""
+        ratio = beta_power / baseline
+        if ratio > 1.5:
+            return 'red'      # Too tense
+        elif ratio > 1.2:
+            return 'yellow'   # Slightly elevated
+        else:
+            return 'green'    # Good
+            
+    def update_tension_indicator(self, color):
+        """Update the tension indicator in the UI"""
+        if hasattr(self, 'tension_indicator'):
+            self.tension_indicator.set_color(color)
+        else:
+            # Create tension indicator if it doesn't exist
+            self.tension_indicator = plt.Circle((0.95, 0.95), 0.02, 
+                                             color=color, transform=self.fig.transFigure)
+            self.fig.add_artist(self.tension_indicator)
     
     def data_collection_worker(self):
         """Continuously collect EEG data"""
@@ -580,8 +808,8 @@ class FreethrowUI:
         self.status_text.set_text('SHOOT NOW!')
         self.play_beep_nonblocking(self.shot_beep)
         
-        # Schedule end of recording
-        self.shot_timer = threading.Timer(self.SHOT_DURATION, self.end_recording)
+        # Schedule end of recording after SHOT_DURATION + POST_SHOT_DURATION
+        self.shot_timer = threading.Timer(self.SHOT_DURATION + self.POST_SHOT_DURATION, self.end_recording)
         self.shot_timer.start()
     
     def end_recording(self):
@@ -604,27 +832,81 @@ class FreethrowUI:
         result = "MADE" if success else "MISSED"
         
         if self.current_shot >= self.num_shots:
-            self.status_text.set_text('All shots completed!')
+            self.status_text.set_text('All shots completed! Saving data...')
+            plt.pause(0.1)  # Force text update
             self.start_shot_button.set_active(False)
+            # Save data first, then cleanup
+            self.save_session_data(success)
+            self.cleanup()
+            plt.close('all')  # Close all windows immediately
         else:
             self.status_text.set_text(f'Shot {result} - Press Start Shot when ready')
             self.start_shot_button.set_active(True)
+            # Save data for this shot
+            self.save_session_data(success)
         
         self.shot_phase = "ready"
         self.success_button.set_active(False)
         self.fail_button.set_active(False)
     
-    def cleanup(self):
-        """Clean up resources"""
+    def save_session_data(self, success):
+        """Save shot data to session"""
         try:
-            if hasattr(self, 'animation') and self.animation is not None:
+            # Create session if it doesn't exist
+            if not hasattr(self, 'session'):
+                self.session = Session(self.player_id, self.num_shots)
+            
+            # Get EEG data for this shot
+            eeg_data = {
+                'pre_shot': {band: list(self.eeg_buffer[band])[-500:-250] for band in self.FREQ_BANDS.keys()},
+                'during_shot': {band: list(self.eeg_buffer[band])[-250:-100] for band in self.FREQ_BANDS.keys()},
+                'post_shot': {band: list(self.eeg_buffer[band])[-100:] for band in self.FREQ_BANDS.keys()}
+            }
+            
+            # Create shot data
+            shot_data = {
+                "shot_id": self.current_shot,
+                "timestamp": time.time(),
+                "success": success,
+                "eeg_data": eeg_data,
+                "video_path": str(self.session.session_dir / "session_recording.mp4")
+            }
+            
+            # Add shot to session
+            self.session.add_shot(shot_data)
+            
+        except Exception as e:
+            print(f"Error saving shot data: {e}")
+    
+    def cleanup(self):
+        """Clean up resources when session ends"""
+        try:
+            print("Starting cleanup...")
+            if hasattr(self, 'animation'):
                 self.animation.event_source.stop()
+            
+            if hasattr(self, 'data_thread'):
+                self.data_thread.join(timeout=1.0)
+                
+            if hasattr(self, 'update_thread'):
+                self.update_thread.join(timeout=1.0)
+            
+            if hasattr(self, 'shot_timer'):
+                self.shot_timer.cancel()
+            
             if self.board:
+                print("Stopping EEG stream...")
                 self.board.stop_stream()
                 self.board.release_session()
+                print("EEG stream stopped")
+            
             if self.cap:
+                print("Releasing camera...")
                 self.cap.release()
-            plt.close('all')
+                print("Camera released")
+            
+            print("Cleanup completed")
+            
         except Exception as e:
             print(f"Error during cleanup: {e}")
 
