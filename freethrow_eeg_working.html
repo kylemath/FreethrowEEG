@@ -355,6 +355,110 @@
             font-size: 0.9rem;
         }
 
+        /* Analysis panel styles */
+        .analysis-header {
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
+
+        .analysis-subtitle {
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+        }
+
+        .analysis-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--surface-light);
+            border-radius: 0.5rem;
+        }
+
+        .analysis-controls .form-group {
+            min-width: 200px;
+            margin-bottom: 0;
+        }
+
+        .analysis-controls input[type="file"] {
+            background: var(--surface-light);
+        }
+
+        .analysis-controls small {
+            display: block;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .analysis-status {
+            margin-bottom: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            background: rgba(15, 118, 110, 0.2);
+            border: 1px solid rgba(45, 212, 191, 0.4);
+            color: var(--text);
+        }
+
+        .analysis-status.warning {
+            background: rgba(245, 158, 11, 0.15);
+            border-color: rgba(245, 158, 11, 0.4);
+        }
+
+        .analysis-legend {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--surface-light);
+        }
+
+        .phase-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .phase-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .phase-color {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+        }
+
+        .plot-container {
+            margin-bottom: 2rem;
+            background: var(--surface-light);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+            padding: 1rem;
+        }
+
+        .plot-title {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        #shotPlot, #sessionPlot, #averagedPlot {
+            width: 100%;
+            height: 420px;
+        }
+
+        @media (max-width: 768px) {
+            .analysis-controls {
+                flex-direction: column;
+            }
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -379,6 +483,7 @@
             }
         }
     </style>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -508,6 +613,79 @@
                 </div>
             </div>
         </div>
+
+        <!-- Analysis Panel -->
+        <div class="card" id="analysis-panel">
+            <h2 class="analysis-header">Session Analysis</h2>
+            <p class="analysis-subtitle">Visualize recorded EEG power across individual shots, full sessions, or averaged views.</p>
+
+            <div id="analysis-status" class="analysis-status warning">
+                Load a saved session JSON file or complete at least one live shot to enable the plots.
+            </div>
+
+            <div class="analysis-controls">
+                <div class="form-group">
+                    <label for="dataType">Data Type</label>
+                    <select id="dataType">
+                        <option value="shots">Shot-Level Data</option>
+                        <option value="session">Session-Level Data</option>
+                        <option value="averaged">Averaged Analysis (Baseline Corrected)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="shotControl" style="display: none;">
+                    <label for="shotSelect">Shot Number</label>
+                    <select id="shotSelect">
+                        <option value="all">All Shots</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="bandSelect">Frequency Band</label>
+                    <select id="bandSelect">
+                        <option value="delta">Delta</option>
+                        <option value="theta">Theta</option>
+                        <option value="alpha">Alpha</option>
+                        <option value="beta">Beta</option>
+                        <option value="gamma">Gamma</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="analysis-file">Load Saved Session</label>
+                    <input type="file" id="analysis-file" accept=".json,application/json">
+                    <small>Upload an exported freethrow_session JSON file.</small>
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-secondary" id="analysis-use-live" disabled>Use Current Session Data</button>
+                </div>
+            </div>
+
+            <div class="analysis-legend">
+                <strong>Phase Colors</strong>
+                <div class="phase-legend">
+                    <div class="phase-item"><span class="phase-color" style="background:#1f77b4;"></span>Prep</div>
+                    <div class="phase-item"><span class="phase-color" style="background:#ff7f0e;"></span>Pre-Shot</div>
+                    <div class="phase-item"><span class="phase-color" style="background:#2ca02c;"></span>Recording</div>
+                    <div class="phase-item"><span class="phase-color" style="background:#d62728;"></span>Post-Shot</div>
+                    <div class="phase-item"><span class="phase-color" style="background:#9467bd;"></span>Review</div>
+                </div>
+                <p style="margin-top:0.5rem;color:var(--text-muted);font-size:0.9rem;">Green markers = made shot, Red markers = missed shot.</p>
+            </div>
+
+            <div class="plot-container" id="shotPlotContainer">
+                <div class="plot-title">Shot-Level EEG Data</div>
+                <div id="shotPlot"></div>
+            </div>
+
+            <div class="plot-container" id="sessionPlotContainer" style="display: none;">
+                <div class="plot-title">Session-Level EEG Data</div>
+                <div id="sessionPlot"></div>
+            </div>
+
+            <div class="plot-container" id="averagedPlotContainer" style="display: none;">
+                <div class="plot-title">Averaged Analysis (Baseline Corrected)</div>
+                <div id="averagedPlot"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Include Muse-JS library directly -->
@@ -576,18 +754,18 @@
         // Configuration
         const CONFIG = {
             frequencyBands: {
-                delta: { range: [1, 4], color: '#3b82f6', basePower: 80 },
-                theta: { range: [4, 8], color: '#10b981', basePower: 50 },
-                alpha: { range: [8, 13], color: '#ef4444', basePower: 30 },
-                beta: { range: [13, 30], color: '#8b5cf6', basePower: 20 },
-                gamma: { range: [30, 50], color: '#f59e0b', basePower: 10 }
+                delta: { range: [1, 4], color: '#3b82f6', basePower: 80, rawAmplitude: 45, rawFrequency: 0.4 },
+                theta: { range: [4, 8], color: '#10b981', basePower: 50, rawAmplitude: 30, rawFrequency: 0.7 },
+                alpha: { range: [8, 13], color: '#ef4444', basePower: 30, rawAmplitude: 18, rawFrequency: 1.1 },
+                beta: { range: [13, 30], color: '#8b5cf6', basePower: 20, rawAmplitude: 12, rawFrequency: 1.6 },
+                gamma: { range: [30, 50], color: '#f59e0b', basePower: 10, rawAmplitude: 8, rawFrequency: 2.2 }
             },
             electrodes: ['TP9', 'AF7', 'AF8', 'TP10'],
             updateInterval: 250, // ms
             shotPhases: {
                 prep: 5000,      // 5 seconds preparation
                 preShot: 10000,  // 10 seconds pre-shot (recording window before shot)
-                shot: 2000,      // 2 seconds shot
+                shot: 3000,      // 3 seconds shot
                 postShot: 5000   // 5 seconds post-shot (recording window after shot)
             },
             chartSamples: 120    // Keep last 30 seconds of data
@@ -607,12 +785,17 @@
             dataTimer: null,
             qualityTimer: null,
             videoStream: null,
+            mediaRecorder: null,
+            recordedChunks: [],
             audioContext: null,
             sessionData: null,
             currentShotData: null,
+            currentVideoBlob: null,
+            recordingActive: false,
             eegData: {
                 timestamps: [],
-                bands: {}
+                bands: {},
+                rawBands: {}
             }
         };
 
@@ -642,8 +825,47 @@
             sessionLog: document.getElementById('session-log'),
             exportData: document.getElementById('export-data'),
             dataSummary: document.getElementById('data-summary'),
-            museStatusText: document.getElementById('muse-status-text')
+            museStatusText: document.getElementById('muse-status-text'),
+            analysisStatus: document.getElementById('analysis-status'),
+            analysisFile: document.getElementById('analysis-file'),
+            analysisUseLive: document.getElementById('analysis-use-live'),
+            shotControl: document.getElementById('shotControl'),
+            dataType: document.getElementById('dataType'),
+            shotSelect: document.getElementById('shotSelect'),
+            bandSelect: document.getElementById('bandSelect'),
+            shotPlotContainer: document.getElementById('shotPlotContainer'),
+            sessionPlotContainer: document.getElementById('sessionPlotContainer'),
+            averagedPlotContainer: document.getElementById('averagedPlotContainer')
         };
+
+        // Analysis state
+        let analysisData = null;
+        const phaseColors = {
+            prep: '#1f77b4',
+            preShot: '#ff7f0e',
+            recording: '#2ca02c',
+            postShot: '#d62728',
+            review: '#9467bd'
+        };
+
+        function setAnalysisStatus(message, tone = 'info') {
+            if (!elements.analysisStatus) return;
+            elements.analysisStatus.textContent = message;
+            elements.analysisStatus.classList.toggle('warning', tone === 'warning');
+        }
+
+        function updateAnalysisSourceAvailability() {
+            const hasLiveSessionShots = !!(state.sessionData && Array.isArray(state.sessionData.shots) && state.sessionData.shots.length > 0);
+            elements.analysisUseLive.disabled = !hasLiveSessionShots;
+            if (!analysisData) {
+                setAnalysisStatus(
+                    hasLiveSessionShots
+                        ? 'Click "Use Current Session Data" or upload a saved session JSON to render the charts.'
+                        : 'Load a saved session JSON file or complete at least one live shot to enable the plots.',
+                    hasLiveSessionShots ? 'info' : 'warning'
+                );
+            }
+        }
 
         // Chart setup
         const chartCtx = elements.eegChart.getContext('2d');
@@ -759,16 +981,24 @@
             Object.keys(CONFIG.frequencyBands).forEach(band => {
                 const config = CONFIG.frequencyBands[band];
                 const basePower = config.basePower;
+                const rawAmplitude = config.rawAmplitude || basePower * 0.25;
+                const rawFrequency = config.rawFrequency || 0.8;
                 
-                // Add some realistic variation
+                const rawWave = rawAmplitude * Math.sin(now * rawFrequency);
+                const rawNoise = (Math.random() - 0.5) * rawAmplitude * 0.6;
+                const rawShotBoost = state.phase === 'recording' ? rawAmplitude * 0.8 : 0;
+                const rawValue = rawWave + rawNoise + rawShotBoost;
+                
                 const timeVariation = Math.sin(now * 0.5) * basePower * 0.3;
-                const randomNoise = (Math.random() - 0.5) * basePower * 0.2;
+                const randomNoise = (Math.random() - 0.5) * basePower * 0.15;
                 const shotVariation = state.phase === 'recording' ? basePower * 0.4 : 0;
+                const rawContribution = rawValue * 0.05;
                 
-                const power = Math.max(0.1, basePower + timeVariation + randomNoise + shotVariation);
+                const power = Math.max(0.1, basePower + timeVariation + randomNoise + shotVariation + rawContribution);
                 
                 chartData.bands[band].push(power);
                 state.eegData.bands[band].push(power);
+                state.eegData.rawBands[band].push(rawValue);
 
                 // Store shot-specific data
                 if (state.currentShotData) {
@@ -780,7 +1010,8 @@
                     }
                     state.currentShotData.data[state.phase][band].push({
                         timestamp: now,
-                        power: power
+                        power: power,
+                        raw: rawValue
                     });
                 }
             });
@@ -964,6 +1195,7 @@
             log(`Shot ${result.shotNumber}: ${success ? 'MADE' : 'MISSED'}`);
             updateProgress();
             updateDataSummary();
+            updateAnalysisSourceAvailability();
 
             if (state.currentShot >= state.totalShots) {
                 updatePhase('complete');
@@ -1003,6 +1235,52 @@
             }
         }
 
+        // Video Recording Functions
+        function startVideoRecording() {
+            if (!state.videoStream || state.recordingActive) return;
+            
+            try {
+                state.recordedChunks = [];
+                const options = {
+                    mimeType: 'video/webm;codecs=vp9',
+                    videoBitsPerSecond: 2500000
+                };
+                
+                state.mediaRecorder = new MediaRecorder(state.videoStream, options);
+                
+                state.mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        state.recordedChunks.push(event.data);
+                    }
+                };
+                
+                state.mediaRecorder.onstop = () => {
+                    const blob = new Blob(state.recordedChunks, { type: 'video/webm' });
+                    state.currentVideoBlob = blob;
+                    log('Video recording stopped');
+                };
+                
+                state.mediaRecorder.start();
+                state.recordingActive = true;
+                log('Video recording started');
+            } catch (error) {
+                log(`Video recording failed: ${error.message}`, 'error');
+            }
+        }
+
+        function stopVideoRecording() {
+            if (!state.recordingActive) return;
+            
+            try {
+                if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+                    state.mediaRecorder.stop();
+                }
+                state.recordingActive = false;
+            } catch (error) {
+                log(`Error stopping video recording: ${error.message}`, 'error');
+            }
+        }
+
         // Session Management
         function startSession() {
             const playerName = elements.playerName.value.trim();
@@ -1025,6 +1303,15 @@
             state.sessionStartTime = Date.now();
             state.debugMode = sessionMode === 'debug';
 
+            // Reset aggregation buffers for the new session
+            state.eegData.timestamps = [];
+            state.eegData.bands = {};
+            state.eegData.rawBands = {};
+            Object.keys(CONFIG.frequencyBands).forEach(band => {
+                state.eegData.bands[band] = [];
+                state.eegData.rawBands[band] = [];
+            });
+
             state.sessionData = {
                 playerName: playerName,
                 timestamp: new Date().toISOString(),
@@ -1033,7 +1320,8 @@
                 mode: sessionMode,
                 eegData: {
                     timestamps: [],
-                    bands: {}
+                    bands: {},
+                    rawBands: {}
                 }
             };
 
@@ -1065,6 +1353,13 @@
             animateChart();
 
             log(`Session started for ${playerName} - ${shotCount} shots`);
+            
+            // Start video recording
+            if (state.videoStream) {
+                startVideoRecording();
+            }
+
+            updateAnalysisSourceAvailability();
         }
 
         function exportSessionData() {
@@ -1073,27 +1368,659 @@
                 return;
             }
 
-            const exportData = {
-                ...state.sessionData,
-                eegData: state.eegData,
-                sessionDuration: state.sessionStartTime ? (Date.now() - state.sessionStartTime) / 1000 : 0,
-                completedAt: new Date().toISOString()
-            };
+            // Stop video recording if active
+            if (state.recordingActive) {
+                stopVideoRecording();
+                // Wait for blob to be created
+                setTimeout(() => {
+                    downloadFiles();
+                }, 500);
+            } else {
+                downloadFiles();
+            }
+            
+            function downloadFiles() {
+                const exportData = {
+                    ...state.sessionData,
+                    eegData: state.eegData,
+                    sessionDuration: state.sessionStartTime ? (Date.now() - state.sessionStartTime) / 1000 : 0,
+                    completedAt: new Date().toISOString()
+                };
 
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-                type: 'application/json'
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+                    type: 'application/json'
+                });
+
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `freethrow_session_${state.sessionData.playerName}_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                // Download video if available
+                if (state.currentVideoBlob) {
+                    const videoUrl = URL.createObjectURL(state.currentVideoBlob);
+                    const videoLink = document.createElement('a');
+                    videoLink.href = videoUrl;
+                    videoLink.download = `freethrow_session_${state.sessionData.playerName}_${new Date().toISOString().split('T')[0]}.webm`;
+                    document.body.appendChild(videoLink);
+                    videoLink.click();
+                    document.body.removeChild(videoLink);
+                    URL.revokeObjectURL(videoUrl);
+                    log('Video file exported');
+                }
+
+                log('Session data exported successfully');
+            }
+        }
+
+        // Analysis & visualization helpers
+        function sanitizeAnalysisData(rawData) {
+            if (!rawData || !Array.isArray(rawData.shots) || rawData.shots.length === 0) {
+                throw new Error('Dataset must include at least one recorded shot.');
+            }
+
+            const sanitized = JSON.parse(JSON.stringify(rawData));
+            if (!sanitized.eegData) {
+                sanitized.eegData = { timestamps: [], bands: {}, rawBands: {} };
+            }
+            sanitized.eegData.timestamps = sanitized.eegData.timestamps || [];
+            sanitized.eegData.bands = sanitized.eegData.bands || {};
+            sanitized.eegData.rawBands = sanitized.eegData.rawBands || {};
+
+            Object.keys(CONFIG.frequencyBands).forEach(band => {
+                if (!Array.isArray(sanitized.eegData.bands[band])) {
+                    sanitized.eegData.bands[band] = [];
+                }
+                if (!Array.isArray(sanitized.eegData.rawBands[band])) {
+                    sanitized.eegData.rawBands[band] = [];
+                }
             });
 
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `freethrow_session_${state.sessionData.playerName}_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            sanitized.shots = sanitized.shots.map(shot => {
+                if (!shot.eegData) {
+                    shot.eegData = {};
+                }
+                const phases = ['prep', 'preShot', 'recording', 'postShot', 'review'];
+                phases.forEach(phase => {
+                    if (shot.eegData[phase]) {
+                        Object.keys(shot.eegData[phase]).forEach(band => {
+                            shot.eegData[phase][band] = shot.eegData[phase][band].map(point => ({
+                                timestamp: point.timestamp,
+                                power: point.power,
+                                raw: point.raw !== undefined ? point.raw : point.power
+                            }));
+                        });
+                    }
+                });
+                return shot;
+            });
 
-            log('Session data exported successfully');
+            return sanitized;
+        }
+
+        function loadAnalysisFromObject(rawData, sourceLabel) {
+            try {
+                analysisData = sanitizeAnalysisData(rawData);
+                initializeAnalysis(sourceLabel);
+            } catch (error) {
+                alert(`Unable to load session data: ${error.message}`);
+            }
+        }
+
+        function initializeAnalysis(sourceLabel) {
+            if (!analysisData) return;
+
+            const shotSelect = elements.shotSelect;
+            shotSelect.innerHTML = '<option value="all">All Shots</option>';
+            analysisData.shots.forEach((shot, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                const statusMark = shot.success ? '✓' : '✗';
+                option.textContent = `Shot ${shot.shotNumber || index + 1} ${statusMark}`;
+                shotSelect.appendChild(option);
+            });
+
+            setAnalysisStatus(`Displaying data from ${sourceLabel}.`);
+            updatePlots();
+        }
+
+        function handleAnalysisFileChange(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    loadAnalysisFromObject(parsed, `uploaded file "${file.name}"`);
+                } catch (error) {
+                    alert(`Failed to parse JSON file: ${error.message}`);
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function useLiveSessionDataForAnalysis() {
+            if (!state.sessionData || !Array.isArray(state.sessionData.shots) || state.sessionData.shots.length === 0) {
+                alert('Complete at least one shot before using live session data for analysis.');
+                return;
+            }
+
+            const liveData = {
+                ...state.sessionData,
+                eegData: state.eegData
+            };
+
+            loadAnalysisFromObject(liveData, 'current live session');
+        }
+
+        function ensurePlotlyReady(targetId) {
+            if (typeof Plotly === 'undefined') {
+                console.error('Plotly is not available. Please check the network connection.');
+                setAnalysisStatus('Unable to load Plotly charts. Check your internet connection.', 'warning');
+                return false;
+            }
+            if (!document.getElementById(targetId)) {
+                console.warn(`Target element ${targetId} not found for Plotly render.`);
+                return false;
+            }
+            return true;
+        }
+
+        function updatePlots() {
+            if (!analysisData) return;
+
+            const dataType = elements.dataType.value;
+            const shotControl = elements.shotControl;
+
+            if (dataType === 'shots') {
+                shotControl.style.display = 'flex';
+                elements.shotPlotContainer.style.display = 'block';
+                elements.sessionPlotContainer.style.display = 'none';
+                elements.averagedPlotContainer.style.display = 'none';
+                plotShotData();
+            } else if (dataType === 'session') {
+                shotControl.style.display = 'none';
+                elements.shotPlotContainer.style.display = 'none';
+                elements.sessionPlotContainer.style.display = 'block';
+                elements.averagedPlotContainer.style.display = 'none';
+                plotSessionData();
+            } else if (dataType === 'averaged') {
+                shotControl.style.display = 'none';
+                elements.shotPlotContainer.style.display = 'none';
+                elements.sessionPlotContainer.style.display = 'none';
+                elements.averagedPlotContainer.style.display = 'block';
+                plotAveragedData();
+            }
+        }
+
+        function plotShotData() {
+            if (!ensurePlotlyReady('shotPlot')) return;
+            const shotIndex = elements.shotSelect.value;
+            const band = elements.bandSelect.value;
+            const traces = [];
+
+            if (shotIndex === 'all') {
+                analysisData.shots.forEach(shot => {
+                    const phases = ['prep', 'preShot', 'recording', 'postShot', 'review'];
+                    phases.forEach(phase => {
+                        if (shot.eegData[phase] && shot.eegData[phase][band]) {
+                            const phaseData = shot.eegData[phase][band];
+                            const timestamps = phaseData.map(d => d.timestamp);
+                            const powers = phaseData.map(d => d.power);
+
+                            traces.push({
+                                x: timestamps,
+                                y: powers,
+                                type: 'scatter',
+                                mode: 'lines+markers',
+                                name: `Shot ${shot.shotNumber} - ${phase}`,
+                                line: {
+                                    color: phaseColors[phase],
+                                    width: 2
+                                },
+                                marker: {
+                                    color: shot.success ? '#28a745' : '#dc3545',
+                                    size: 6,
+                                    symbol: shot.success ? 'circle' : 'x'
+                                },
+                                hovertemplate: `<b>Shot ${shot.shotNumber} - ${phase}</b><br>` +
+                                             `Time: %{x:.2f}s<br>` +
+                                             `Power: %{y:.2f}<br>` +
+                                             `Success: ${shot.success ? 'Yes' : 'No'}<extra></extra>`
+                            });
+                        }
+                    });
+                });
+            } else {
+                const shot = analysisData.shots[parseInt(shotIndex)];
+                const phases = ['prep', 'preShot', 'recording', 'postShot', 'review'];
+
+                phases.forEach(phase => {
+                    if (shot && shot.eegData[phase] && shot.eegData[phase][band]) {
+                        const phaseData = shot.eegData[phase][band];
+                        const timestamps = phaseData.map(d => d.timestamp);
+                        const powers = phaseData.map(d => d.power);
+
+                        traces.push({
+                            x: timestamps,
+                            y: powers,
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: phase,
+                            line: {
+                                color: phaseColors[phase],
+                                width: 3
+                            },
+                            marker: {
+                                color: shot.success ? '#28a745' : '#dc3545',
+                                size: 8,
+                                symbol: shot.success ? 'circle' : 'x'
+                            },
+                            hovertemplate: `<b>${phase}</b><br>` +
+                                         `Time: %{x:.2f}s<br>` +
+                                         `Power: %{y:.2f}<extra></extra>`
+                        });
+                    }
+                });
+            }
+
+            const layout = {
+                title: {
+                    text: `${band.charAt(0).toUpperCase() + band.slice(1)} Band Power Over Time`,
+                    font: { size: 20 }
+                },
+                xaxis: {
+                    title: 'Time (seconds)',
+                    gridcolor: '#e0e0e0'
+                },
+                yaxis: {
+                    title: 'Power',
+                    gridcolor: '#e0e0e0'
+                },
+                hovermode: 'closest',
+                plot_bgcolor: '#0f172a',
+                paper_bgcolor: '#0f172a',
+                font: { color: '#f8fafc' },
+                legend: {
+                    x: 1.02,
+                    y: 1,
+                    xanchor: 'left',
+                    yanchor: 'top'
+                },
+                margin: { r: 200 }
+            };
+
+            Plotly.newPlot('shotPlot', traces, layout, { responsive: true });
+        }
+
+        function plotSessionData() {
+            if (!ensurePlotlyReady('sessionPlot')) return;
+            if (!analysisData.eegData || !analysisData.eegData.timestamps || analysisData.eegData.timestamps.length === 0) {
+                Plotly.purge('sessionPlot');
+                return;
+            }
+
+            const band = elements.bandSelect.value;
+            if (!analysisData.eegData.bands[band] || analysisData.eegData.bands[band].length === 0) {
+                Plotly.purge('sessionPlot');
+                return;
+            }
+
+            const trace = {
+                x: analysisData.eegData.timestamps,
+                y: analysisData.eegData.bands[band],
+                type: 'scatter',
+                mode: 'lines',
+                name: `${band.charAt(0).toUpperCase() + band.slice(1)} Band`,
+                line: {
+                    color: '#667eea',
+                    width: 2
+                },
+                hovertemplate: `<b>${band.charAt(0).toUpperCase() + band.slice(1)}</b><br>` +
+                             `Time: %{x:.2f}s<br>` +
+                             `Power: %{y:.2f}<extra></extra>`
+            };
+
+            const annotations = [];
+            const shapes = [];
+            let minShotTime = Infinity;
+
+            analysisData.shots.forEach(shot => {
+                if (shot.eegData.prep && shot.eegData.prep[band] && shot.eegData.prep[band].length > 0) {
+                    const firstTime = shot.eegData.prep[band][0].timestamp;
+                    if (firstTime < minShotTime) minShotTime = firstTime;
+                }
+            });
+
+            if (minShotTime === Infinity) {
+                minShotTime = analysisData.eegData.timestamps[0] || 0;
+            }
+
+            const sessionStart = analysisData.eegData.timestamps[0] || 0;
+            const offset = sessionStart - minShotTime;
+
+            analysisData.shots.forEach(shot => {
+                let shotStartTime = null;
+                if (shot.eegData.prep && shot.eegData.prep[band] && shot.eegData.prep[band].length > 0) {
+                    shotStartTime = shot.eegData.prep[band][0].timestamp + offset;
+                } else if (shot.eegData.preShot && shot.eegData.preShot[band] && shot.eegData.preShot[band].length > 0) {
+                    shotStartTime = shot.eegData.preShot[band][0].timestamp + offset;
+                }
+
+                if (shotStartTime !== null) {
+                    const closestIdx = analysisData.eegData.timestamps.reduce((bestIdx, ts, i) => {
+                        return Math.abs(ts - shotStartTime) < Math.abs(analysisData.eegData.timestamps[bestIdx] - shotStartTime) ? i : bestIdx;
+                    }, 0);
+
+                    const xPos = analysisData.eegData.timestamps[closestIdx];
+                    const yPos = analysisData.eegData.bands[band][closestIdx];
+                    const color = shot.success ? '#28a745' : '#dc3545';
+
+                    shapes.push({
+                        type: 'line',
+                        x0: xPos,
+                        x1: xPos,
+                        y0: 0,
+                        y1: 1,
+                        yref: 'paper',
+                        line: {
+                            color: color,
+                            width: 2,
+                            dash: 'dash'
+                        }
+                    });
+
+                    annotations.push({
+                        x: xPos,
+                        y: yPos,
+                        text: `Shot ${shot.shotNumber} ${shot.success ? '✓' : '✗'}`,
+                        showarrow: true,
+                        arrowhead: 2,
+                        arrowcolor: color,
+                        bgcolor: '#0f172a',
+                        bordercolor: color,
+                        borderwidth: 2,
+                        font: { color: color, size: 10 }
+                    });
+                }
+            });
+
+            const layout = {
+                title: {
+                    text: `Session-Level ${band.charAt(0).toUpperCase() + band.slice(1)} Band Power`,
+                    font: { size: 20 }
+                },
+                xaxis: {
+                    title: 'Time (seconds)',
+                    gridcolor: '#e0e0e0'
+                },
+                yaxis: {
+                    title: 'Power',
+                    gridcolor: '#e0e0e0'
+                },
+                hovermode: 'closest',
+                plot_bgcolor: '#0f172a',
+                paper_bgcolor: '#0f172a',
+                font: { color: '#f8fafc' },
+                shapes: shapes,
+                annotations: annotations
+            };
+
+            Plotly.newPlot('sessionPlot', [trace], layout, { responsive: true });
+        }
+
+        function plotAveragedData() {
+            if (!ensurePlotlyReady('averagedPlot')) return;
+            const band = elements.bandSelect.value;
+
+            const successfulShots = analysisData.shots.filter(shot => shot.success);
+            const missedShots = analysisData.shots.filter(shot => !shot.success);
+
+            function processShot(shot) {
+                let baseline = 0;
+                if (shot.eegData.prep && shot.eegData.prep[band] && shot.eegData.prep[band].length > 0) {
+                    const prepPowers = shot.eegData.prep[band].map(d => d.power);
+                    baseline = prepPowers.reduce((sum, p) => sum + p, 0) / prepPowers.length;
+                }
+
+                const phases = ['prep', 'preShot', 'recording', 'postShot', 'review'];
+                const processedPhases = {};
+
+                phases.forEach(phase => {
+                    if (shot.eegData[phase] && shot.eegData[phase][band]) {
+                        const phaseData = shot.eegData[phase][band];
+                        const firstTimestamp = phaseData.length > 0 ? phaseData[0].timestamp : 0;
+                        processedPhases[phase] = phaseData.map(d => ({
+                            time: d.timestamp - firstTimestamp,
+                            power: d.power - baseline
+                        }));
+                    }
+                });
+
+                return processedPhases;
+            }
+
+            const processedSuccessful = successfulShots.map(processShot);
+            const processedMissed = missedShots.map(processShot);
+            const processedAll = analysisData.shots.map(processShot);
+
+            function averagePhase(processedShots, phaseName) {
+                if (processedShots.length === 0) return null;
+
+                const allTimePoints = new Set();
+                processedShots.forEach(shot => {
+                    if (shot[phaseName]) {
+                        shot[phaseName].forEach(d => allTimePoints.add(d.time));
+                    }
+                });
+
+                const sortedTimes = Array.from(allTimePoints).sort((a, b) => a - b);
+
+                const averaged = sortedTimes.map(time => {
+                    const powers = [];
+                    processedShots.forEach(shot => {
+                        if (shot[phaseName]) {
+                            const closest = shot[phaseName].reduce((best, d) => {
+                                return Math.abs(d.time - time) < Math.abs(best.time - time) ? d : best;
+                            }, shot[phaseName][0]);
+                            powers.push(closest.power);
+                        }
+                    });
+
+                    return {
+                        time: time,
+                        power: powers.reduce((sum, p) => sum + p, 0) / powers.length
+                    };
+                });
+
+                return averaged;
+            }
+
+            const phases = ['prep', 'preShot', 'recording', 'postShot', 'review'];
+            const phaseNames = ['Prep', 'Pre-Shot', 'Recording', 'Post-Shot', 'Review'];
+
+            function getPhaseOffsets(processedShots) {
+                const offsets = { prep: 0 };
+                let currentOffset = 0;
+
+                function getAvgPhaseDuration(phaseName) {
+                    const durations = processedShots
+                        .filter(shot => shot[phaseName] && shot[phaseName].length > 0)
+                        .map(shot => {
+                            const times = shot[phaseName].map(d => d.time);
+                            return Math.max(...times) - Math.min(...times);
+                        });
+                    return durations.length > 0
+                        ? durations.reduce((sum, d) => sum + d, 0) / durations.length
+                        : 0;
+                }
+
+                const avgPrepDuration = getAvgPhaseDuration('prep');
+                currentOffset = avgPrepDuration;
+                offsets.preShot = currentOffset;
+                currentOffset += getAvgPhaseDuration('preShot');
+
+                offsets.recording = currentOffset;
+                currentOffset += getAvgPhaseDuration('recording');
+
+                offsets.postShot = currentOffset;
+                currentOffset += getAvgPhaseDuration('postShot');
+
+                offsets.review = currentOffset;
+
+                return offsets;
+            }
+
+            const traces = [];
+
+            if (processedSuccessful.length > 0) {
+                const offsets = getPhaseOffsets(processedSuccessful);
+                phases.forEach((phase, idx) => {
+                    const averaged = averagePhase(processedSuccessful, phase);
+                    if (averaged && averaged.length > 0) {
+                        const times = averaged.map(d => d.time + offsets[phase]);
+                        const powers = averaged.map(d => d.power);
+
+                        traces.push({
+                            x: times,
+                            y: powers,
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: `Successful (n=${processedSuccessful.length}) - ${phaseNames[idx]}`,
+                            line: {
+                                color: '#28a745',
+                                width: 2
+                            },
+                            marker: {
+                                color: '#28a745',
+                                size: 5
+                            },
+                            hovertemplate: `<b>Successful - ${phaseNames[idx]}</b><br>` +
+                                         `Time: %{x:.2f}s<br>` +
+                                         `Power (baseline corrected): %{y:.2f}<extra></extra>`
+                        });
+                    }
+                });
+            }
+
+            if (processedMissed.length > 0) {
+                const offsets = getPhaseOffsets(processedMissed);
+                phases.forEach((phase, idx) => {
+                    const averaged = averagePhase(processedMissed, phase);
+                    if (averaged && averaged.length > 0) {
+                        const times = averaged.map(d => d.time + offsets[phase]);
+                        const powers = averaged.map(d => d.power);
+
+                        traces.push({
+                            x: times,
+                            y: powers,
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: `Missed (n=${processedMissed.length}) - ${phaseNames[idx]}`,
+                            line: {
+                                color: '#dc3545',
+                                width: 2
+                            },
+                            marker: {
+                                color: '#dc3545',
+                                size: 5
+                            },
+                            hovertemplate: `<b>Missed - ${phaseNames[idx]}</b><br>` +
+                                         `Time: %{x:.2f}s<br>` +
+                                         `Power (baseline corrected): %{y:.2f}<extra></extra>`
+                        });
+                    }
+                });
+            }
+
+            if (processedAll.length > 0) {
+                const offsets = getPhaseOffsets(processedAll);
+                phases.forEach((phase, idx) => {
+                    const averaged = averagePhase(processedAll, phase);
+                    if (averaged && averaged.length > 0) {
+                        const times = averaged.map(d => d.time + offsets[phase]);
+                        const powers = averaged.map(d => d.power);
+
+                        traces.push({
+                            x: times,
+                            y: powers,
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: `Overall (n=${processedAll.length}) - ${phaseNames[idx]}`,
+                            line: {
+                                color: '#667eea',
+                                width: 3,
+                                dash: 'dash'
+                            },
+                            marker: {
+                                color: '#667eea',
+                                size: 6
+                            },
+                            hovertemplate: `<b>Overall - ${phaseNames[idx]}</b><br>` +
+                                         `Time: %{x:.2f}s<br>` +
+                                         `Power (baseline corrected): %{y:.2f}<extra></extra>`
+                        });
+                    }
+                });
+            }
+
+            const shapes = [];
+            if (processedAll.length > 0) {
+                const offsets = getPhaseOffsets(processedAll);
+                phases.forEach(phase => {
+                    if (offsets[phase] !== undefined && phase !== 'prep') {
+                        shapes.push({
+                            type: 'line',
+                            x0: offsets[phase],
+                            x1: offsets[phase],
+                            y0: 0,
+                            y1: 1,
+                            yref: 'paper',
+                            line: {
+                                color: '#999',
+                                width: 1,
+                                dash: 'dot'
+                            }
+                        });
+                    }
+                });
+            }
+
+            const layout = {
+                title: {
+                    text: `Averaged ${band.charAt(0).toUpperCase() + band.slice(1)} Band Power (Baseline Corrected)`,
+                    font: { size: 20 }
+                },
+                xaxis: {
+                    title: 'Time (seconds, relative to phase start)',
+                    gridcolor: '#e0e0e0'
+                },
+                yaxis: {
+                    title: 'Power (baseline corrected)',
+                    gridcolor: '#e0e0e0'
+                },
+                hovermode: 'closest',
+                plot_bgcolor: '#0f172a',
+                paper_bgcolor: '#0f172a',
+                font: { color: '#f8fafc' },
+                shapes: shapes,
+                legend: {
+                    x: 1.02,
+                    y: 1,
+                    xanchor: 'left',
+                    yanchor: 'top'
+                },
+                margin: { r: 250 }
+            };
+
+            Plotly.newPlot('averagedPlot', traces, layout, { responsive: true });
         }
 
         // MUSE Connection Functions
@@ -1150,6 +2077,11 @@
         elements.markMade.addEventListener('click', () => finishShot(true));
         elements.markMissed.addEventListener('click', () => finishShot(false));
         elements.exportData.addEventListener('click', exportSessionData);
+        elements.analysisUseLive.addEventListener('click', useLiveSessionDataForAnalysis);
+        elements.analysisFile.addEventListener('change', handleAnalysisFileChange);
+        elements.dataType.addEventListener('change', updatePlots);
+        elements.shotSelect.addEventListener('change', updatePlots);
+        elements.bandSelect.addEventListener('change', updatePlots);
 
         // Timer update
         setInterval(updateTimer, 100);
@@ -1177,6 +2109,7 @@
         }, 1000);
         
         log('Ready to start - select mode and connect devices');
+        updateAnalysisSourceAvailability();
     </script>
 </body>
 </html>
