@@ -88,24 +88,24 @@ class SetupDialog:
     def _connect_muse_handler(self, event, debug=False):
         """Handle MUSE connection button events."""
         if debug:
-            self.muse_status.set_text('* Connecting to MUSE (Debug)...')
+            self.muse_status.set_text('* Starting Debug Mode...')
         else:
-            self.muse_status.set_text(f'* Connecting to {self.selected_device}...')
+            self.muse_status.set_text(f'* Searching for {self.selected_device}...\n  (This may take 10-15 seconds)')
         self.muse_status.set_color('orange')
         self.muse_button.set_active(False)
         self.debug_button.set_active(False)
-        self.muse_button.label.set_text('Connecting...')
-        plt.pause(0.01)  # Force update
+        self.muse_button.label.set_text('Searching...')
+        plt.pause(0.1)  # Force update to show message before blocking
         
         # Call the actual connection handler with device type
         success = self.on_connect_muse(debug=debug, device_type=self.selected_device)
         
         if success:
             if debug:
-                self.muse_status.set_text('✓ MUSE Simulated (Debug Mode)')
+                self.muse_status.set_text('✓ Debug Mode Active\n  (Simulated EEG data)')
                 self.muse_status.set_color('blue')
             else:
-                self.muse_status.set_text(f'✓ {self.selected_device} Connected')
+                self.muse_status.set_text(f'✓ {self.selected_device} Connected!\n  Streaming real EEG data')
                 self.muse_status.set_color('green')
             
             self.muse_button.label.set_text('Connected')
@@ -115,13 +115,25 @@ class SetupDialog:
             self.debug_button.set_active(False)
             if debug:
                 self.debug_button.label.set_text('Debug Active')
-            # Disable device selector after connection
-            for circle in self.device_selector.circles:
-                circle.set_alpha(0.3)
+            # Disable device selector after connection (gray it out visually)
+            try:
+                # Try different matplotlib versions' attribute names
+                if hasattr(self.device_selector, 'circles'):
+                    for circle in self.device_selector.circles:
+                        circle.set_alpha(0.3)
+                elif hasattr(self.device_selector, '_buttons'):
+                    for btn in self.device_selector._buttons:
+                        btn.set_alpha(0.3)
+                # Also dim the labels
+                if hasattr(self.device_selector, 'labels'):
+                    for label in self.device_selector.labels:
+                        label.set_alpha(0.5)
+            except Exception as e:
+                logger.debug(f"Could not dim device selector: {e}")
         else:
-            self.muse_status.set_text(f'X {self.selected_device} Connection Failed')
+            self.muse_status.set_text(f'X {self.selected_device} not found\n  Check power & Bluetooth, try different device type')
             self.muse_status.set_color('red')
-            self.muse_button.label.set_text('Retry Connect')
+            self.muse_button.label.set_text('Retry')
             self.muse_button.set_active(True)
             self.debug_button.set_active(True)
         
