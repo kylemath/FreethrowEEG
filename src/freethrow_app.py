@@ -15,7 +15,7 @@ from datetime import datetime
 from src.utils.logger import logger
 from src.utils.config import (
     BUFFER_LENGTH, FREQ_BANDS, FRAME_WIDTH, FRAME_HEIGHT,
-    PRE_SHOT_DURATION, SHOT_DURATION, POST_SHOT_DURATION
+    PRE_SHOT_DURATION, SHOT_DURATION, POST_SHOT_DURATION, FPS
 )
 from src.eeg.processor import EEGProcessor
 from src.video.camera import CameraManager
