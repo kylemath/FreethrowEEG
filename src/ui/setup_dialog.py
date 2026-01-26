@@ -3,8 +3,9 @@ Setup dialog for the FreethrowEEG application.
 """
 
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Button, TextBox
+from matplotlib.widgets import Button, TextBox, RadioButtons
 from src.utils.logger import logger
+from src.utils.config import MUSE_DEVICES, DEFAULT_MUSE_DEVICE
 
 class SetupDialog:
     """Handles the initial setup dialog for the application."""
@@ -29,76 +30,96 @@ class SetupDialog:
         self.muse_status = None
         self.muse_button = None
         self.debug_button = None
+        self.device_selector = None
+        self.selected_device = DEFAULT_MUSE_DEVICE
         self.camera_status = None
         self.camera_button = None
         self.start_button = None
     
     def show(self):
         """Show the setup dialog."""
-        self.setup_fig = plt.figure(figsize=(8, 6))
+        self.setup_fig = plt.figure(figsize=(10, 7))
         self.setup_fig.canvas.manager.set_window_title('FreethrowEEG Setup')
         
         # Add text boxes for player info
-        plt.figtext(0.1, 0.8, 'Player Name/ID:', size=10)
-        self.player_box = TextBox(plt.axes([0.4, 0.8, 0.4, 0.05]), '', initial='001')
+        plt.figtext(0.1, 0.85, 'Player Name/ID:', size=10)
+        self.player_box = TextBox(plt.axes([0.35, 0.85, 0.3, 0.05]), '', initial='001')
         
-        plt.figtext(0.1, 0.7, 'Number of Shots:', size=10)
-        self.shots_box = TextBox(plt.axes([0.4, 0.7, 0.4, 0.05]), '', initial='2')
+        plt.figtext(0.1, 0.78, 'Number of Shots:', size=10)
+        self.shots_box = TextBox(plt.axes([0.35, 0.78, 0.3, 0.05]), '', initial='2')
+        
+        # Add Muse device type selector
+        plt.figtext(0.1, 0.68, 'Muse Device Type:', size=10)
+        device_names = list(MUSE_DEVICES.keys())
+        device_ax = plt.axes([0.35, 0.52, 0.3, 0.18])
+        self.device_selector = RadioButtons(device_ax, device_names, active=device_names.index(DEFAULT_MUSE_DEVICE))
+        self.device_selector.on_clicked(self._device_selected)
         
         # Add status indicators and connect buttons
-        self.muse_status = plt.figtext(0.1, 0.5, 'X MUSE Not Connected', color='red')
+        self.muse_status = plt.figtext(0.1, 0.42, 'X MUSE Not Connected', color='red')
         
         # Create two buttons side by side for MUSE connection
-        self.muse_button = Button(plt.axes([0.4, 0.5, 0.25, 0.05]), 'Connect MUSE')
+        self.muse_button = Button(plt.axes([0.35, 0.42, 0.2, 0.05]), 'Connect MUSE')
         self.muse_button.on_clicked(lambda x: self._connect_muse_handler(x, debug=False))
         
-        self.debug_button = Button(plt.axes([0.7, 0.5, 0.25, 0.05]), 'Debug Mode')
+        self.debug_button = Button(plt.axes([0.58, 0.42, 0.2, 0.05]), 'Debug Mode')
         self.debug_button.on_clicked(lambda x: self._connect_muse_handler(x, debug=True))
         
-        self.camera_status = plt.figtext(0.1, 0.4, 'X Camera Not Connected', color='red')
-        self.camera_button = Button(plt.axes([0.6, 0.4, 0.2, 0.05]), 'Connect Camera')
+        self.camera_status = plt.figtext(0.1, 0.32, 'X Camera Not Connected', color='red')
+        self.camera_button = Button(plt.axes([0.55, 0.32, 0.2, 0.05]), 'Connect Camera')
         self.camera_button.on_clicked(self._connect_camera_handler)
         
-        self.start_button = Button(plt.axes([0.35, 0.2, 0.3, 0.1]), 'Start Session')
+        self.start_button = Button(plt.axes([0.35, 0.15, 0.3, 0.1]), 'Start Session')
         self.start_button.on_clicked(self._start_session_handler)
         self.start_button.set_active(False)  # Disable until setup complete
         
+        # Add helpful instructions
+        plt.figtext(0.1, 0.05, 
+                   'Instructions: 1) Select your Muse device type  2) Click "Connect MUSE"  3) Connect camera  4) Start session',
+                   size=8, style='italic')
+        
         plt.show()
+    
+    def _device_selected(self, label):
+        """Handle device type selection."""
+        self.selected_device = label
+        logger.info(f"Selected Muse device: {label}")
     
     def _connect_muse_handler(self, event, debug=False):
         """Handle MUSE connection button events."""
         if debug:
             self.muse_status.set_text('* Connecting to MUSE (Debug)...')
         else:
-            self.muse_status.set_text('* Connecting to MUSE...')
+            self.muse_status.set_text(f'* Connecting to {self.selected_device}...')
         self.muse_status.set_color('orange')
         self.muse_button.set_active(False)
         self.debug_button.set_active(False)
         self.muse_button.label.set_text('Connecting...')
         plt.pause(0.01)  # Force update
         
-        # Call the actual connection handler
-        success = self.on_connect_muse(debug)
+        # Call the actual connection handler with device type
+        success = self.on_connect_muse(debug=debug, device_type=self.selected_device)
         
         if success:
             if debug:
-                self.muse_status.set_text('✓ MUSE Simulated')
+                self.muse_status.set_text('✓ MUSE Simulated (Debug Mode)')
                 self.muse_status.set_color('blue')
             else:
-                self.muse_status.set_text('✓ MUSE Connected')
+                self.muse_status.set_text(f'✓ {self.selected_device} Connected')
                 self.muse_status.set_color('green')
             
             self.muse_button.label.set_text('Connected')
             
-            # Disable the appropriate buttons
+            # Disable the appropriate buttons and device selector
+            self.muse_button.set_active(False)
+            self.debug_button.set_active(False)
             if debug:
-                self.muse_button.set_active(False)
                 self.debug_button.label.set_text('Debug Active')
-                self.debug_button.set_active(False)
-            else:
-                self.debug_button.set_active(False)
+            # Disable device selector after connection
+            for circle in self.device_selector.circles:
+                circle.set_alpha(0.3)
         else:
-            self.muse_status.set_text('X MUSE Connection Failed')
+            self.muse_status.set_text(f'X {self.selected_device} Connection Failed')
             self.muse_status.set_color('red')
             self.muse_button.label.set_text('Retry Connect')
             self.muse_button.set_active(True)

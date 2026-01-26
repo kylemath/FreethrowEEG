@@ -88,17 +88,18 @@ class FreethrowApp:
         # Show setup dialog
         self.setup_dialog.show()
     
-    def connect_muse(self, debug=False):
+    def connect_muse(self, debug=False, device_type=None):
         """
         Connect to MUSE device or enable debug mode.
         
         Args:
             debug (bool): If True, use simulated data instead of real device.
+            device_type (str): Type of Muse device to connect to.
             
         Returns:
             bool: True if connection successful, False otherwise.
         """
-        return self.eeg_processor.connect_muse(debug)
+        return self.eeg_processor.connect_muse(debug=debug, device_type=device_type)
     
     def connect_camera(self):
         """
