@@ -15,7 +15,7 @@ from datetime import datetime
 from src.utils.logger import logger
 from src.utils.config import (
     BUFFER_LENGTH, FREQ_BANDS, FRAME_WIDTH, FRAME_HEIGHT,
-    PRE_SHOT_DURATION, SHOT_DURATION, POST_SHOT_DURATION
+    PRE_SHOT_DURATION, SHOT_DURATION, POST_SHOT_DURATION, FPS
 )
 from src.eeg.processor import EEGProcessor
 from src.video.camera import CameraManager
@@ -44,10 +44,13 @@ class FreethrowApp:
             'player_id': None,
             'timestamp': None,
             'session_start_time': None,
+            'video_recording_start_time': None,  # When video recording actually started
             'shots': [],
             'video_path': None,
+            'video_fps': None,
             'eeg_data': {
-                'timestamps': [],
+                'timestamps': [],  # Relative timestamps (seconds since session start)
+                'absolute_timestamps': [],  # Absolute Unix timestamps for sync
                 'bands': {band: [] for band in FREQ_BANDS.keys()}
             }
         }
@@ -88,17 +91,18 @@ class FreethrowApp:
         # Show setup dialog
         self.setup_dialog.show()
     
-    def connect_muse(self, debug=False):
+    def connect_muse(self, debug=False, device_type=None):
         """
         Connect to MUSE device or enable debug mode.
         
         Args:
             debug (bool): If True, use simulated data instead of real device.
+            device_type (str): Type of Muse device to connect to.
             
         Returns:
             bool: True if connection successful, False otherwise.
         """
-        return self.eeg_processor.connect_muse(debug)
+        return self.eeg_processor.connect_muse(debug=debug, device_type=device_type)
     
     def connect_camera(self):
         """
@@ -161,7 +165,9 @@ class FreethrowApp:
             # Then start video recording
             if not self.camera.start_recording(self.session_data['video_path']):
                 raise RuntimeError("Failed to start video recording")
-            logger.info("Started video recording")
+            self.session_data['video_recording_start_time'] = time.time()
+            self.session_data['video_fps'] = FPS
+            logger.info(f"Started video recording at {self.session_data['video_recording_start_time']}")
             
             logger.info(f"Session info - Player: {self.player_id}, Shots: {self.num_shots}")
             
@@ -216,7 +222,10 @@ class FreethrowApp:
                         self.eeg_buffer[band].append(power)
                     
                     # Always store data in the session data
+                    # current_time is relative (seconds since EEG collection started)
                     self.session_data['eeg_data']['timestamps'].append(current_time)
+                    # Also store absolute timestamp for sync with video
+                    self.session_data['eeg_data']['absolute_timestamps'].append(time.time())
                     for band, power in powers.items():
                         self.session_data['eeg_data']['bands'][band].append(float(power))
                     
@@ -331,9 +340,17 @@ class FreethrowApp:
         # Record shot result and save data
         if previous_result:
             logger.info(f"Saving shot {current_shot} data (Result: {previous_result})")
+            end_time = time.time()
+            
+            # Calculate video frame indices for this shot
+            video_start = self.session_data.get('video_recording_start_time', self.session_data['session_start_time'])
+            fps = self.session_data.get('video_fps', FPS)
+            shot_start_frame = int((self.shot_start_time - video_start) * fps) if self.shot_start_time else 0
+            shot_end_frame = int((end_time - video_start) * fps)
+            
             shot_data = {
                 "shot_id": current_shot,
-                "timestamp": time.time(),
+                "timestamp": end_time,
                 "success": previous_result == "made",
                 "eeg_data": {
                     "pre_shot": {band: list(data) for band, data in self.current_shot_data['pre_shot'].items()},
@@ -342,9 +359,13 @@ class FreethrowApp:
                 },
                 "video_timestamps": {
                     "start": self.shot_start_time,
-                    "end": time.time()
+                    "end": end_time
                 },
-                "duration": time.time() - self.shot_start_time if self.shot_start_time else None,
+                "video_frames": {
+                    "start_frame": shot_start_frame,
+                    "end_frame": shot_end_frame
+                },
+                "duration": end_time - self.shot_start_time if self.shot_start_time else None,
                 "video_path": self.session_data['video_path']
             }
             
@@ -371,9 +392,23 @@ class FreethrowApp:
     def save_session_data(self):
         """Save session data to file."""
         try:
+            if not self.session_data.get('video_path'):
+                logger.warning("No video path set, cannot save session data")
+                return
+                
             # Create session directory if it doesn't exist
             session_dir = os.path.dirname(self.session_data['video_path'])
             os.makedirs(session_dir, exist_ok=True)
+            
+            # Add sync info to help with analysis
+            self.session_data['sync_info'] = {
+                'session_start_time': self.session_data.get('session_start_time'),
+                'video_recording_start_time': self.session_data.get('video_recording_start_time'),
+                'video_fps': self.session_data.get('video_fps'),
+                'total_eeg_samples': len(self.session_data['eeg_data']['timestamps']),
+                'total_shots': len(self.session_data['shots']),
+                'session_end_time': time.time()
+            }
             
             # Save session data
             data_file = os.path.join(session_dir, "session_data.json")
@@ -381,6 +416,8 @@ class FreethrowApp:
                 json.dump(self.session_data, f, indent=2)
             
             logger.info(f"Session data saved to {data_file}")
+            logger.info(f"  - EEG samples: {self.session_data['sync_info']['total_eeg_samples']}")
+            logger.info(f"  - Shots recorded: {self.session_data['sync_info']['total_shots']}")
             
         except Exception as e:
             logger.error(f"Error saving session data: {e}", exc_info=True)
@@ -407,9 +444,10 @@ class FreethrowApp:
                 except Exception as e:
                     cleanup_errors.append(f"Error stopping video recording: {e}")
             
-            # Save any remaining data
-            if self.setup_complete:
+            # Save any remaining data (always try to save if we have a video path)
+            if self.setup_complete and self.session_data.get('video_path'):
                 try:
+                    logger.info("Saving session data before cleanup...")
                     self.save_session_data()
                 except Exception as e:
                     cleanup_errors.append(f"Error saving session data: {e}")

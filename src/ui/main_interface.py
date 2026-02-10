@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 from matplotlib.animation import FuncAnimation
 import threading
+import time
 
 from src.utils.config import FRAME_WIDTH, FRAME_HEIGHT
 from src.utils.logger import logger
@@ -85,6 +86,10 @@ class MainInterface:
         self.status_text = None
         
         self.animation = None
+        
+        # Debounce settings for keyboard input (prevents accidental double-presses)
+        self._last_key_time = 0
+        self._key_debounce_seconds = 1.5  # Ignore repeated keys within 1.5 seconds
     
     def show(self):
         """Show the main interface."""
@@ -116,8 +121,14 @@ class MainInterface:
             self.success_button.on_clicked(lambda x: self._mark_shot_handler(x, True))
             self.success_button.set_active(False)
             
-            # Add status text
+            # Add status text with keyboard hints
             self.status_text = plt.figtext(0.1, 0.05, 'Ready to start', size=10)
+            plt.figtext(0.1, 0.01, 
+                       'Keyboard: SPACE=Start Shot | RIGHT/PageDown=Made | LEFT/PageUp=Miss',
+                       size=8, style='italic', color='gray')
+            
+            # Connect keyboard events for slide clicker support
+            self.fig.canvas.mpl_connect('key_press_event', self._on_key_press)
             
             # Create animation
             logger.info("Creating animation...")
@@ -149,6 +160,58 @@ class MainInterface:
         """Handle shot marking button events."""
         logger.info(f"Shot marked as {'successful' if success else 'missed'}")
         self.on_mark_shot(success)
+    
+    def _on_key_press(self, event):
+        """
+        Handle keyboard events for slide clicker support.
+        
+        Supported keys:
+        - SPACE: Start shot (when in ready state)
+        - RIGHT, PAGEDOWN, DOWN: Mark shot as MADE
+        - LEFT, PAGEUP, UP: Mark shot as MISSED
+        
+        Includes debounce protection to prevent accidental double-presses.
+        """
+        # Log ALL key presses for debugging
+        logger.info(f"KEY PRESSED: '{event.key}' (raw)")
+        
+        # Check debounce - ignore if key pressed too recently
+        current_time = time.time()
+        if current_time - self._last_key_time < self._key_debounce_seconds:
+            logger.info(f"Key ignored (debounce): {event.key}")
+            return
+        
+        key = event.key.lower() if event.key else ''
+        logger.info(f"Processing key: '{key}', Start active: {self.start_shot_button._is_active}, Success active: {self.success_button._is_active}, Fail active: {self.fail_button._is_active}")
+        action_taken = False
+        
+        # Forward keys (clicker forward button, right arrow, space, etc.)
+        # Logitech R400 sends: pagedown (forward), f5 (start presentation), '.' (black screen)
+        forward_keys = ['space', ' ', 'right', 'pagedown', 'down', 'f5', 'next']
+        back_keys = ['left', 'pageup', 'up', 'escape', 'b', 'prior']
+        
+        if key in forward_keys:
+            # If waiting to start a shot, forward button starts it
+            if self.start_shot_button._is_active:
+                logger.info(f">>> START SHOT triggered by keyboard ({key.upper()})")
+                self.on_start_shot()
+                action_taken = True
+            # If reviewing a shot, forward button marks it as MADE
+            elif self.success_button._is_active:
+                logger.info(f">>> Shot marked MADE by keyboard ({key.upper()})")
+                self.on_mark_shot(True)
+                action_taken = True
+        
+        elif key in back_keys:
+            # Back button only marks shot as MISSED (during review)
+            if self.fail_button._is_active:
+                logger.info(f">>> Shot marked MISSED by keyboard ({key.upper()})")
+                self.on_mark_shot(False)
+                action_taken = True
+        
+        # Update debounce timer only if an action was taken
+        if action_taken:
+            self._last_key_time = current_time
     
     def update_status(self, text):
         """

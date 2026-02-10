@@ -11,7 +11,8 @@ import queue
 
 from src.utils.config import (
     FREQ_BANDS, WINDOW_SIZE, LINE_NOISE_FREQ, 
-    SIMULATED_SAMPLING_RATE, SIGNAL_THRESHOLD
+    SIMULATED_SAMPLING_RATE, SIGNAL_THRESHOLD,
+    MUSE_DEVICES, DEFAULT_MUSE_DEVICE
 )
 from src.utils.logger import logger
 
@@ -39,12 +40,14 @@ class EEGProcessor:
         self.buffer_position = 0
         self.eeg_channels = None
     
-    def connect_muse(self, debug=False):
+    def connect_muse(self, debug=False, device_type=None):
         """
         Connect to MUSE device or enable debug mode.
         
         Args:
             debug (bool): If True, use simulated data instead of real device.
+            device_type (str): Type of Muse device (e.g., 'Muse 2', 'Muse S'). 
+                              If None, uses DEFAULT_MUSE_DEVICE from config.
             
         Returns:
             bool: True if connection successful, False otherwise.
@@ -52,8 +55,23 @@ class EEGProcessor:
         self.debug_mode = debug
         
         if debug:
-            logger.info("Running in debug mode - simulating MUSE connection")
+            logger.warning("=" * 60)
+            logger.warning("  RUNNING IN DEBUG MODE - ALL DATA IS SIMULATED")
+            logger.warning("  To collect real data, restart and click 'Connect MUSE'")
+            logger.warning("=" * 60)
             return True
+        
+        # Determine which Muse device to connect to
+        if device_type is None:
+            device_type = DEFAULT_MUSE_DEVICE
+        
+        if device_type not in MUSE_DEVICES:
+            logger.error(f"Unknown Muse device type: {device_type}")
+            logger.error(f"Supported devices: {list(MUSE_DEVICES.keys())}")
+            return False
+        
+        board_id = MUSE_DEVICES[device_type]
+        logger.info(f"Attempting to connect to {device_type} (board_id={board_id})...")
             
         # Real MUSE connection attempt
         try:
@@ -61,19 +79,21 @@ class EEGProcessor:
             params.serial_port = ""  # Auto-discovery
             params.timeout = 15
             
-            # Use the correct board ID for Muse 2 (38)
-            board_id = 38  # Muse 2 board ID constant from BrainFlow
             BoardShim.enable_dev_board_logger()
             
             self.board = BoardShim(board_id, params)
+            logger.info("Preparing session (this may take a moment)...")
             self.board.prepare_session()
+            
             if not self.board.is_prepared():
                 raise ConnectionError("Board preparation failed")
             
             # Initialize the data buffer for all channels
             sampling_rate = BoardShim.get_sampling_rate(board_id)
-            total_channels = self.board.get_num_rows(board_id)  # Get total number of channels
-            logger.info(f"Total channels from MUSE: {total_channels}")
+            total_channels = self.board.get_num_rows(board_id)
+            logger.info(f"Connected to {device_type}!")
+            logger.info(f"  Sampling rate: {sampling_rate} Hz")
+            logger.info(f"  Total channels: {total_channels}")
             
             # Buffer 5 seconds of data (adjust if needed)
             self.buffer_size = int(5 * sampling_rate)
@@ -82,13 +102,19 @@ class EEGProcessor:
             
             # Store channel information
             self.eeg_channels = BoardShim.get_eeg_channels(board_id)
-            logger.info(f"EEG channels: {self.eeg_channels}")
+            logger.info(f"  EEG channels: {self.eeg_channels}")
             
             self.board.start_stream()
+            logger.info("Data stream started - collecting REAL EEG data")
             return True
             
         except Exception as e:
-            logger.error(f"Failed to connect to MUSE: {e}")
+            logger.error(f"Failed to connect to {device_type}: {e}")
+            logger.error("Troubleshooting tips:")
+            logger.error("  1. Is the Muse headband turned on and in pairing mode?")
+            logger.error("  2. Is it paired with your computer via Bluetooth?")
+            logger.error("  3. Is the correct device type selected?")
+            logger.error(f"  4. Try a different device type: {list(MUSE_DEVICES.keys())}")
             return False
     
     def is_connected(self):
@@ -122,9 +148,16 @@ class EEGProcessor:
             
             if self.debug_mode:
                 sampling_rate = self.simulated_sampling_rate
-                logger.info("Running in debug mode with simulated data")
+                logger.warning("=" * 50)
+                logger.warning("  DATA COLLECTION: SIMULATED MODE")
+                logger.warning("  You will see smooth sine wave patterns")
+                logger.warning("=" * 50)
             else:
                 sampling_rate = BoardShim.get_sampling_rate(self.board.board_id)
+                logger.info("=" * 50)
+                logger.info("  DATA COLLECTION: REAL MUSE DATA")
+                logger.info("  You should see noisy, irregular patterns")
+                logger.info("=" * 50)
             
             logger.info(f"Sampling rate: {sampling_rate} Hz")
             
@@ -166,8 +199,8 @@ class EEGProcessor:
         try:
             if self.debug_mode:
                 return self._get_simulated_band_powers()
-                
-            logger.info("Getting board data...")
+            
+            logger.debug("Getting board data...")
             
             # Get new data from the board
             new_data = self.board.get_current_board_data(12)  # Get the latest 12 samples

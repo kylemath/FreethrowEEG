@@ -11,6 +11,16 @@ FREQ_BANDS = {
     'gamma': (30, 50)
 }
 
+# Muse device types and their BrainFlow board IDs
+# See: https://brainflow.readthedocs.io/en/stable/SupportedBoards.html
+MUSE_DEVICES = {
+    'Muse 2': 38,
+    'Muse S': 21,
+    'Muse 2016': 22,
+    'Muse S (BLED112)': 39,
+}
+DEFAULT_MUSE_DEVICE = 'Muse 2'
+
 # Buffer and timing constants
 BUFFER_LENGTH = 30000  # Up to ~50 minutes at 10Hz
 PLOT_UPDATE_INTERVAL = 0.1
