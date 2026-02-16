@@ -982,19 +982,17 @@
                 const config = CONFIG.frequencyBands[band];
                 const basePower = config.basePower;
                 const rawAmplitude = config.rawAmplitude || basePower * 0.25;
-                const rawFrequency = config.rawFrequency || 0.8;
                 
-                const rawWave = rawAmplitude * Math.sin(now * rawFrequency);
-                const rawNoise = (Math.random() - 0.5) * rawAmplitude * 0.6;
+                // Use random noise instead of oscillating sine waves for smoother data
+                const rawNoise = (Math.random() - 0.5) * rawAmplitude * 0.4;
                 const rawShotBoost = state.phase === 'recording' ? rawAmplitude * 0.8 : 0;
-                const rawValue = rawWave + rawNoise + rawShotBoost;
+                const rawValue = rawNoise + rawShotBoost;
                 
-                const timeVariation = Math.sin(now * 0.5) * basePower * 0.3;
-                const randomNoise = (Math.random() - 0.5) * basePower * 0.15;
+                const randomNoise = (Math.random() - 0.5) * basePower * 0.2;
                 const shotVariation = state.phase === 'recording' ? basePower * 0.4 : 0;
                 const rawContribution = rawValue * 0.05;
                 
-                const power = Math.max(0.1, basePower + timeVariation + randomNoise + shotVariation + rawContribution);
+                const power = Math.max(0.1, basePower + randomNoise + shotVariation + rawContribution);
                 
                 chartData.bands[band].push(power);
                 state.eegData.bands[band].push(power);

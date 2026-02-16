@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FreethrowEEG Web Simulator</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #08111d;
+      --bg-panel: #0f1f33;
+      --accent: #ff9800;
+      --accent-dark: #ef6c00;
+      --text: #f5f5f5;
+      --text-muted: #b0bec5;
+      --danger: #ff7043;
+      --success: #66bb6a;
+      --warning: #ffca28;
+      font-family: "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top left, rgba(255, 152, 0, 0.2), transparent 55%),
+        radial-gradient(circle at bottom right, rgba(33, 150, 243, 0.2), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 3rem 1.5rem 2rem;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: clamp(2.2rem, 4vw, 3.3rem);
+      letter-spacing: 0.05em;
+    }
+
+    header p {
+      max-width: 700px;
+      margin: 1rem auto 0;
+      color: var(--text-muted);
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem 4rem;
+    }
+
+    .panel {
+      background: rgba(15, 31, 51, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 18px;
+      padding: 1.8rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(5px);
+    }
+
+    h2 {
+      margin-top: 0;
+      margin-bottom: 1rem;
+      font-size: 1.7rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 0.5rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 0.65rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+
+    button {
+      background: var(--accent);
+      border: none;
+      border-radius: 999px;
+      padding: 0.65rem 1.6rem;
+      color: #031222;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(255, 152, 0, 0.35);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.95rem;
+      margin-right: 1rem;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--danger);
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+    }
+
+    .status-indicator.connected .status-dot {
+      background: var(--success);
+      box-shadow: 0 0 15px rgba(102, 187, 106, 0.6);
+    }
+
+    .status-indicator.debug .status-dot {
+      background: var(--warning);
+      box-shadow: 0 0 15px rgba(255, 202, 40, 0.6);
+    }
+
+    .grid {
+      display: grid;
+      gap: 1.5rem;
+    }
+
+    .grid.two {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+
+    .shot-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .shot-status {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    video {
+      width: 100%;
+      border-radius: 12px;
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      min-height: 200px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 260px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .quality-map {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .electrode {
+      width: 85px;
+      height: 85px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .electrode strong {
+      margin-top: 0.4rem;
+      color: var(--text-muted);
+    }
+
+    .log {
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 10px;
+      padding: 0.75rem;
+      max-height: 280px;
+      overflow-y: auto;
+      font-family: "Fira Code", monospace;
+      font-size: 0.85rem;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 0.3rem 0.7rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-right: 0.5rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .download-btn {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid rgba(255, 152, 0, 0.6);
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem 1rem 3rem;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 800px) {
+      .shot-status {
+        flex-basis: 100%;
+        margin-left: 0;
+        margin-top: 0.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="pill">FreethrowEEG</div>
+    <h1>Free Throw Brain–Body Training Simulator</h1>
+    <p>
+      A browser-based mock of the FreethrowEEG desktop app. Connect to simulated devices, run through timed
+      shooting phases, record makes/misses, and export synthetic EEG data for later analysis.
+    </p>
+  </header>
+  <main>
+    <section class="panel" id="setup-panel">
+      <h2>Session Setup</h2>
+      <div class="grid two">
+        <div>
+          <label>Player Name / ID</label>
+          <input type="text" id="player-id" placeholder="Player001" value="Player001" />
+
+          <label>Number of Shots</label>
+          <input type="number" id="shot-count" min="1" max="100" value="5" />
+
+          <div class="status-row">
+            <span class="status-indicator" id="muse-status">
+              <span class="status-dot"></span> Muse: Not Connected
+            </span>
+            <span class="status-indicator" id="camera-status">
+              <span class="status-dot"></span> Camera: Not Connected
+            </span>
+          </div>
+        </div>
+        <div>
+          <button id="connect-muse">Connect Muse</button>
+          <button id="connect-muse-debug">Debug Mode</button>
+          <button id="connect-camera">Connect Camera</button>
+          <button id="start-session" disabled>Start Session</button>
+          <p style="color: var(--text-muted); margin-top: 1rem;">
+            Use <strong>Connect Muse</strong> to simulate a live headset, or <strong>Debug Mode</strong> to stream
+            deterministic sample data. Camera connection uses your browser's webcam (permission required).
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="session-panel">
+      <h2>Live Session Dashboard</h2>
+      <div class="grid two">
+        <div>
+          <canvas id="eeg-canvas" width="640" height="260"></canvas>
+          <p class="shot-status" id="shot-status">Waiting to start...</p>
+        </div>
+        <div>
+          <div class="quality-map" id="quality-map"></div>
+          <video id="camera-feed" autoplay playsinline muted></video>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:1.5rem;">
+        <h2>Shot Controls</h2>
+        <div class="shot-controls">
+          <button id="start-shot" disabled>Start Shot</button>
+          <button id="mark-make" disabled>Made ✓</button>
+          <button id="mark-miss" disabled class="danger">Miss ✗</button>
+          <span class="shot-status" id="phase-status">Phase: Idle</span>
+        </div>
+        <div style="margin-top:1rem; color: var(--text-muted);" id="timer-display">Timer: 0.0s</div>
+      </div>
+
+      <div class="grid two" style="margin-top:1.5rem;">
+        <div>
+          <h2>Session Log</h2>
+          <div class="log" id="session-log"></div>
+        </div>
+        <div>
+          <h2>Data Export</h2>
+          <p>All simulated EEG band powers and shot metadata are accumulated in real-time.</p>
+          <button class="download-btn" id="download-data">Download Session JSON</button>
+          <pre style="font-size:0.8rem; background:rgba(0,0,0,0.35); padding:0.75rem; border-radius:10px; max-height:180px; overflow:auto;" id="summary"></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer>
+    Browser simulator inspired by the FreethrowEEG project. Uses synthetic data streams to mimic the desktop app's workflow.
+  </footer>
+
+  <script>
+    const CONFIG = {
+      freqBands: {
+        delta: [1, 4],
+        theta: [4, 8],
+        alpha: [8, 13],
+        beta: [13, 30],
+        gamma: [30, 50],
+      },
+      colors: {
+        delta: "#42a5f5",
+        theta: "#66bb6a",
+        alpha: "#ef5350",
+        beta: "#ab47bc",
+        gamma: "#ffa726",
+      },
+      updateInterval: 250,
+      preShot: 5000,
+      shotDuration: 2000,
+      postShot: 3000,
+      sampleWindow: 60,
+    };
+
+    const state = {
+      museConnected: false,
+      debugMode: false,
+      cameraConnected: false,
+      running: false,
+      currentShot: 0,
+      totalShots: 0,
+      phase: "idle",
+      phaseTimeout: null,
+      phaseStart: null,
+      dataTimer: null,
+      qualityTimer: null,
+      sessionStart: null,
+      sessionData: null,
+      currentShotData: null,
+      audioCtx: null,
+      videoStream: null,
+    };
+
+    const elements = {
+      setupPanel: document.getElementById("setup-panel"),
+      sessionPanel: document.getElementById("session-panel"),
+      playerId: document.getElementById("player-id"),
+      shotCount: document.getElementById("shot-count"),
+      startSession: document.getElementById("start-session"),
+      connectMuse: document.getElementById("connect-muse"),
+      connectMuseDebug: document.getElementById("connect-muse-debug"),
+      connectCamera: document.getElementById("connect-camera"),
+      museStatus: document.getElementById("muse-status"),
+      cameraStatus: document.getElementById("camera-status"),
+      startShot: document.getElementById("start-shot"),
+      markMake: document.getElementById("mark-make"),
+      markMiss: document.getElementById("mark-miss"),
+      phaseStatus: document.getElementById("phase-status"),
+      timerDisplay: document.getElementById("timer-display"),
+      shotStatus: document.getElementById("shot-status"),
+      sessionLog: document.getElementById("session-log"),
+      downloadData: document.getElementById("download-data"),
+      summary: document.getElementById("summary"),
+      qualityMap: document.getElementById("quality-map"),
+      video: document.getElementById("camera-feed"),
+      canvas: document.getElementById("eeg-canvas"),
+    };
+
+    const electrodes = ["TP9", "AF7", "AF8", "TP10"];
+    const electrodeElements = {};
+    const ctx = elements.canvas.getContext("2d");
+    const chartData = {
+      timestamps: [],
+      bands: Object.fromEntries(Object.keys(CONFIG.freqBands).map((band) => [band, []])),
+    };
+
+    function initQualityMap() {
+      electrodes.forEach((name) => {
+        const div = document.createElement("div");
+        div.className = "electrode";
+        div.innerHTML = `<div>${name}</div><strong>--</strong>`;
+        elements.qualityMap.appendChild(div);
+        electrodeElements[name] = div;
+      });
+    }
+
+    function updateStatusIndicators() {
+      const museClasses = ["status-indicator"];
+      if (state.museConnected) museClasses.push(state.debugMode ? "debug" : "connected");
+      elements.museStatus.className = museClasses.join(" ");
+      elements.museStatus.innerHTML = `<span class="status-dot"></span> Muse: ${state.museConnected ? (state.debugMode ? "Simulated" : "Connected") : "Not Connected"}`;
+
+      const cameraClasses = ["status-indicator"];
+      if (state.cameraConnected) cameraClasses.push("connected");
+      elements.cameraStatus.className = cameraClasses.join(" ");
+      elements.cameraStatus.innerHTML = `<span class="status-dot"></span> Camera: ${state.cameraConnected ? "Streaming" : "Not Connected"}`;
+
+      elements.startSession.disabled = !(state.museConnected && state.cameraConnected);
+    }
+
+    function log(message) {
+      const time = new Date().toLocaleTimeString();
+      const line = document.createElement("div");
+      line.textContent = `[${time}] ${message}`;
+      elements.sessionLog.prepend(line);
+    }
+
+    function ensureAudioCtx() {
+      if (!state.audioCtx) {
+        state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (state.audioCtx.state === "suspended") {
+        state.audioCtx.resume();
+      }
+    }
+
+    function playBeep(frequency = 1000, duration = 0.15) {
+      ensureAudioCtx();
+      const oscillator = state.audioCtx.createOscillator();
+      const gain = state.audioCtx.createGain();
+      oscillator.frequency.value = frequency;
+      oscillator.type = "sine";
+      gain.gain.value = 0.2;
+      oscillator.connect(gain).connect(state.audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(state.audioCtx.currentTime + duration);
+    }
+
+    function randomQuality() {
+      return Math.random();
+    }
+
+    function setElectrodeQuality(name, quality) {
+      const el = electrodeElements[name];
+      const level = el.querySelector("strong");
+      level.textContent = `${Math.round(quality * 100)}%`;
+      if (quality > 0.75) {
+        el.style.background = "rgba(102, 187, 106, 0.25)";
+        el.style.boxShadow = "0 0 20px rgba(102,187,106,0.4)";
+      } else if (quality > 0.5) {
+        el.style.background = "rgba(255, 202, 40, 0.25)";
+        el.style.boxShadow = "0 0 20px rgba(255,202,40,0.4)";
+      } else {
+        el.style.background = "rgba(239, 83, 80, 0.25)";
+        el.style.boxShadow = "0 0 20px rgba(239,83,80,0.4)";
+      }
+    }
+
+    function updateQualityMap() {
+      electrodes.forEach((name) => {
+        const quality = 0.5 + Math.random() * 0.5;
+        setElectrodeQuality(name, quality);
+      });
+    }
+
+    function changePhase(phase) {
+      state.phase = phase;
+      elements.phaseStatus.textContent = `Phase: ${phase}`;
+      state.phaseStart = performance.now();
+      updateTimerDisplay();
+
+      if (phase === "idle" || phase === "complete") {
+        elements.startShot.disabled = !state.running || state.currentShot >= state.totalShots;
+        elements.markMake.disabled = true;
+        elements.markMiss.disabled = true;
+      }
+
+      if (phase === "prep") {
+        elements.shotStatus.textContent = `Get ready for Shot ${state.currentShot + 1}`;
+        elements.startShot.disabled = true;
+        playBeep(800, 0.2);
+        state.phaseTimeout = setTimeout(() => beginRecordingPhase("pre_shot"), CONFIG.preShot);
+      }
+
+      if (phase === "recording") {
+        elements.shotStatus.textContent = "SHOOT NOW!";
+        playBeep(1200, 0.2);
+      }
+
+      if (phase === "review") {
+        elements.shotStatus.textContent = "Log the result";
+        elements.markMake.disabled = false;
+        elements.markMiss.disabled = false;
+      }
+    }
+
+    function beginRecordingPhase(subPhase) {
+      state.currentShotData.phase = subPhase;
+      changePhase("recording" + (subPhase ? ` (${subPhase.replace("_", " ")})` : ""));
+
+      let nextTimeout;
+      if (subPhase === "pre_shot") {
+        nextTimeout = setTimeout(() => beginRecordingPhase("during_shot"), CONFIG.preShot / 2);
+      }
+      if (subPhase === "during_shot") {
+        nextTimeout = setTimeout(() => beginRecordingPhase("post_shot"), CONFIG.shotDuration);
+      }
+      if (subPhase === "post_shot") {
+        nextTimeout = setTimeout(() => finishRecording(), CONFIG.postShot);
+      }
+      if (nextTimeout) state.phaseTimeout = nextTimeout;
+    }
+
+    function finishRecording() {
+      changePhase("review");
+    }
+
+    function updateTimerDisplay() {
+      if (!state.phaseStart) {
+        elements.timerDisplay.textContent = "Timer: 0.0s";
+        return;
+      }
+      const elapsed = ((performance.now() - state.phaseStart) / 1000).toFixed(1);
+      elements.timerDisplay.textContent = `Timer: ${elapsed}s`;
+    }
+
+    function simulateEEGData() {
+      const now = (performance.now() - state.sessionStart) / 1000;
+      chartData.timestamps.push(now);
+
+      Object.keys(CONFIG.freqBands).forEach((band) => {
+        const base = band === "alpha" ? 25 : band === "beta" ? 15 : band === "gamma" ? 10 : band === "theta" ? 40 : 80;
+        const variance = Math.sin(now * (band === "gamma" ? 2.5 : band === "beta" ? 1.5 : 0.8)) * base * 0.3;
+        const randomNoise = (Math.random() - 0.5) * base * 0.2;
+        const value = Math.max(0.1, base + variance + randomNoise);
+        chartData.bands[band].push(value);
+
+        if (state.currentShotData) {
+          const phase = state.currentShotData.phase;
+          if (!state.currentShotData.data[phase]) {
+            state.currentShotData.data[phase] = Object.fromEntries(Object.keys(CONFIG.freqBands).map((b) => [b, []]));
+          }
+          state.currentShotData.data[phase][band].push({ t: now, value });
+        }
+
+        state.sessionData.eeg_data.bands[band].push(value);
+      });
+      state.sessionData.eeg_data.timestamps.push(now);
+
+      const maxSamples = CONFIG.sampleWindow * (1000 / CONFIG.updateInterval);
+      if (chartData.timestamps.length > maxSamples) {
+        chartData.timestamps.shift();
+        Object.values(chartData.bands).forEach((arr) => arr.shift());
+      }
+    }
+
+    function drawChart() {
+      const { width, height } = elements.canvas;
+      ctx.clearRect(0, 0, width, height);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.08)";
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 5; i++) {
+        const y = (height / 5) * i;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
+      const timestamps = chartData.timestamps;
+      if (timestamps.length < 2) {
+        requestAnimationFrame(drawChart);
+        return;
+      }
+
+      const maxTime = timestamps[timestamps.length - 1];
+      const minTime = timestamps[0];
+      const timeSpan = maxTime - minTime || 1;
+
+      Object.keys(CONFIG.freqBands).forEach((band) => {
+        const values = chartData.bands[band];
+        if (!values.length) return;
+        const maxVal = Math.max(...values);
+        const minVal = Math.min(...values);
+        const span = maxVal - minVal || 1;
+
+        ctx.beginPath();
+        ctx.strokeStyle = CONFIG.colors[band];
+        ctx.lineWidth = 2;
+
+        values.forEach((value, idx) => {
+          const x = ((timestamps[idx] - minTime) / timeSpan) * width;
+          const y = height - ((value - minVal) / span) * height;
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      });
+
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.font = "14px 'Segoe UI', sans-serif";
+      ctx.fillText(`Elapsed: ${maxTime.toFixed(1)}s`, width - 140, 20);
+      ctx.fillText(`Shot ${state.currentShot + 1} / ${state.totalShots}`, width - 160, 40);
+
+      requestAnimationFrame(drawChart);
+    }
+
+    function updateSummary() {
+      const summary = {
+        player: state.sessionData.player_id,
+        shotsCompleted: state.sessionData.shots.length,
+        totalShots: state.totalShots,
+        timestamp: state.sessionData.timestamp,
+      };
+      elements.summary.textContent = JSON.stringify(summary, null, 2);
+    }
+
+    function startDataStream() {
+      if (state.dataTimer) clearInterval(state.dataTimer);
+      state.sessionStart = performance.now();
+      state.dataTimer = setInterval(simulateEEGData, CONFIG.updateInterval);
+      if (!state.qualityTimer) state.qualityTimer = setInterval(updateQualityMap, 1500);
+      requestAnimationFrame(drawChart);
+    }
+
+    function stopDataStream() {
+      clearInterval(state.dataTimer);
+      clearInterval(state.qualityTimer);
+      state.dataTimer = null;
+      state.qualityTimer = null;
+    }
+
+    async function connectCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        elements.video.srcObject = stream;
+        state.videoStream = stream;
+        state.cameraConnected = true;
+        updateStatusIndicators();
+        log("Camera stream active");
+      } catch (err) {
+        alert("Unable to access webcam: " + err.message);
+        log("Camera connection failed");
+      }
+    }
+
+    function disconnectCamera() {
+      if (state.videoStream) {
+        state.videoStream.getTracks().forEach((track) => track.stop());
+        state.videoStream = null;
+      }
+    }
+
+    function prepareSession() {
+      elements.phaseStatus.textContent = "Phase: idle";
+      elements.shotStatus.textContent = "Session ready";
+      elements.startShot.disabled = false;
+      elements.markMake.disabled = true;
+      elements.markMiss.disabled = true;
+
+      state.sessionData = {
+        player_id: elements.playerId.value.trim(),
+        timestamp: new Date().toISOString(),
+        total_shots: state.totalShots,
+        shots: [],
+        eeg_data: {
+          timestamps: [],
+          bands: Object.fromEntries(Object.keys(CONFIG.freqBands).map((band) => [band, []])),
+        },
+        video_enabled: state.cameraConnected,
+        muse_mode: state.debugMode ? "debug" : "simulated",
+      };
+
+      log(`Session started for ${state.sessionData.player_id}. Target shots: ${state.totalShots}`);
+      updateSummary();
+      startDataStream();
+    }
+
+    function startShotSequence() {
+      if (state.phaseTimeout) {
+        clearTimeout(state.phaseTimeout);
+        state.phaseTimeout = null;
+      }
+      state.currentShotData = {
+        shotNumber: state.currentShot + 1,
+        startTime: (performance.now() - state.sessionStart) / 1000,
+        phase: "pre_shot",
+        data: {
+          pre_shot: Object.fromEntries(Object.keys(CONFIG.freqBands).map((band) => [band, []])),
+          during_shot: Object.fromEntries(Object.keys(CONFIG.freqBands).map((band) => [band, []])),
+          post_shot: Object.fromEntries(Object.keys(CONFIG.freqBands).map((band) => [band, []])),
+        },
+      };
+      changePhase("prep");
+      log(`Shot ${state.currentShot + 1} prep started`);
+    }
+
+    function finishShot(success) {
+      if (!state.currentShotData) return;
+      const result = {
+        shot_id: state.currentShot + 1,
+        timestamp: new Date().toISOString(),
+        success,
+        eeg_data: state.currentShotData.data,
+      };
+      state.sessionData.shots.push(result);
+      log(`Shot ${result.shot_id} ${success ? "MADE" : "MISSED"}`);
+      state.currentShot += 1;
+      state.currentShotData = null;
+      changePhase(state.currentShot >= state.totalShots ? "complete" : "idle");
+      updateSummary();
+
+      if (state.currentShot >= state.totalShots) {
+        log("Session complete. You can download the data JSON.");
+        elements.startShot.disabled = true;
+      } else {
+        elements.startShot.disabled = false;
+        elements.shotStatus.textContent = `Ready for Shot ${state.currentShot + 1}`;
+      }
+    }
+
+    function downloadSession() {
+      if (!state.sessionData) {
+        alert("No session data available yet.");
+        return;
+      }
+      const blob = new Blob([JSON.stringify(state.sessionData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const player = state.sessionData.player_id || "player";
+      link.download = `${player}_session_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      log("Session JSON downloaded");
+    }
+
+    // Event bindings
+    elements.connectMuse.addEventListener("click", () => {
+      state.museConnected = true;
+      state.debugMode = false;
+      updateStatusIndicators();
+      log("Muse connection simulated");
+    });
+
+    elements.connectMuseDebug.addEventListener("click", () => {
+      state.museConnected = true;
+      state.debugMode = true;
+      updateStatusIndicators();
+      log("Muse debug mode enabled");
+    });
+
+    elements.connectCamera.addEventListener("click", connectCamera);
+
+    elements.startSession.addEventListener("click", () => {
+      const player = elements.playerId.value.trim();
+      const shots = parseInt(elements.shotCount.value, 10) || 0;
+      if (!player) {
+        alert("Please enter a player name");
+        return;
+      }
+      if (shots <= 0) {
+        alert("Please choose at least one shot");
+        return;
+      }
+      state.totalShots = shots;
+      state.currentShot = 0;
+      state.running = true;
+      elements.setupPanel.classList.add("hidden");
+      elements.sessionPanel.classList.remove("hidden");
+      prepareSession();
+    });
+
+    elements.startShot.addEventListener("click", () => {
+      if (state.currentShot >= state.totalShots) return;
+      startShotSequence();
+    });
+
+    elements.markMake.addEventListener("click", () => {
+      finishShot(true);
+    });
+
+    elements.markMiss.addEventListener("click", () => {
+      finishShot(false);
+    });
+
+    elements.downloadData.addEventListener("click", downloadSession);
+
+    // Timer updater
+    setInterval(updateTimerDisplay, 100);
+
+    window.addEventListener("beforeunload", () => {
+      disconnectCamera();
+      stopDataStream();
+    });
+
+    initQualityMap();
+    updateStatusIndicators();
+    log("Ready for setup");
+  </script>
+</body>
+</html>
