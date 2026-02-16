@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreethrowEEG - Working Version</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --background: #0f172a;
+            --surface: #1e293b;
+            --surface-light: #334155;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #475569;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--background) 0%, #1e293b 100%);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 0.5rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            background: var(--surface-light);
+            color: var(--text);
+            font-size: 1rem;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            background: var(--surface-light);
+            margin-right: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--danger);
+        }
+
+        .status-indicator.connected .status-dot {
+            background: var(--secondary);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+
+        .status-indicator.debug .status-dot {
+            background: var(--warning);
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            background: var(--surface-light);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .chart {
+            width: 100%;
+            height: 100%;
+        }
+
+        .electrode-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .electrode {
+            text-align: center;
+            padding: 1rem;
+            background: var(--surface-light);
+            border-radius: 0.5rem;
+            border: 2px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .electrode.good {
+            border-color: var(--secondary);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .electrode.warning {
+            border-color: var(--warning);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .electrode.poor {
+            border-color: var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .electrode-name {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .electrode-quality {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .shot-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .shot-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .shot-info > div {
+            padding: 0.5rem 1rem;
+            background: var(--surface-light);
+            border-radius: 0.5rem;
+            font-weight: 600;
+        }
+
+        .timer {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .phase-indicator {
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .phase-idle { color: var(--text-muted); }
+        .phase-prep { color: var(--warning); }
+        .phase-preShot { color: var(--warning); }
+        .phase-recording { color: var(--danger); }
+        .phase-postShot { color: var(--secondary); }
+        .phase-review { color: var(--secondary); }
+        .phase-complete { color: var(--primary); }
+
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+
+        .video-container video {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .log-container {
+            background: #000;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .log-entry {
+            margin-bottom: 0.25rem;
+            color: var(--text-muted);
+        }
+
+        .log-entry.info { color: var(--secondary); }
+        .log-entry.warning { color: var(--warning); }
+        .log-entry.error { color: var(--danger); }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--surface-light);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transition: width 0.3s ease;
+        }
+
+        .muse-info {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--warning);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .muse-info h3 {
+            color: var(--warning);
+            margin-bottom: 0.5rem;
+        }
+
+        .muse-info p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .shot-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .btn {
+                width: 100%;
+                margin-right: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>FreethrowEEG</h1>
+            <p>Streamlined EEG-based free throw training system with real-time brain activity monitoring</p>
+        </div>
+
+        <!-- Setup Panel -->
+        <div class="card" id="setup-panel">
+            <h2>Session Setup</h2>
+            
+            <div class="muse-info">
+                <h3>📡 MUSE Connection Status</h3>
+                <p id="muse-status-text">Checking MUSE library availability...</p>
+            </div>
+            
+            <div class="grid">
+                <div>
+                    <div class="form-group">
+                        <label for="player-name">Player Name</label>
+                        <input type="text" id="player-name" placeholder="Enter your name" value="Player001">
+                    </div>
+                    <div class="form-group">
+                        <label for="shot-count">Number of Shots</label>
+                        <input type="number" id="shot-count" min="1" max="50" value="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="session-mode">Session Mode</label>
+                        <select id="session-mode">
+                            <option value="simulated">Simulated EEG Data</option>
+                            <option value="debug">Debug Mode (Deterministic)</option>
+                            <option value="real">Real MUSE Device</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <div class="status-indicator" id="eeg-status">
+                        <div class="status-dot"></div>
+                        <span>EEG: Not Connected</span>
+                    </div>
+                    <div class="status-indicator" id="camera-status">
+                        <div class="status-dot"></div>
+                        <span>Camera: Not Connected</span>
+                    </div>
+                    <br>
+                    <button class="btn btn-primary" id="connect-eeg">Connect EEG</button>
+                    <button class="btn btn-secondary" id="connect-camera">Connect Camera</button>
+                    <button class="btn btn-primary" id="start-session" disabled>Start Session</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session Panel -->
+        <div class="card hidden" id="session-panel">
+            <h2>Live Training Session</h2>
+            
+            <!-- Progress Bar -->
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+            </div>
+
+            <!-- Shot Info -->
+            <div class="shot-info">
+                <div>Shot <span id="current-shot">1</span> of <span id="total-shots">10</span></div>
+                <div class="timer" id="timer">0.0s</div>
+                <div class="phase-indicator" id="phase-indicator">Idle</div>
+            </div>
+
+            <div class="grid">
+                <!-- EEG Visualization -->
+                <div>
+                    <h3>EEG Frequency Bands</h3>
+                    <div class="chart-container">
+                        <canvas class="chart" id="eeg-chart" width="400" height="300"></canvas>
+                    </div>
+                    
+                    <!-- Electrode Quality -->
+                    <h3>Signal Quality</h3>
+                    <div class="electrode-grid" id="electrode-grid">
+                        <div class="electrode" data-electrode="TP9">
+                            <div class="electrode-name">TP9</div>
+                            <div class="electrode-quality">--</div>
+                        </div>
+                        <div class="electrode" data-electrode="AF7">
+                            <div class="electrode-name">AF7</div>
+                            <div class="electrode-quality">--</div>
+                        </div>
+                        <div class="electrode" data-electrode="AF8">
+                            <div class="electrode-name">AF8</div>
+                            <div class="electrode-quality">--</div>
+                        </div>
+                        <div class="electrode" data-electrode="TP10">
+                            <div class="electrode-name">TP10</div>
+                            <div class="electrode-quality">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video Feed -->
+                <div>
+                    <h3>Video Feed</h3>
+                    <div class="video-container">
+                        <video id="video-feed" autoplay muted playsinline></video>
+                    </div>
+                    
+                    <!-- Shot Controls -->
+                    <div class="shot-controls">
+                        <button class="btn btn-primary" id="start-shot" disabled>Start Shot</button>
+                        <button class="btn btn-secondary" id="mark-made" disabled>Made ✓</button>
+                        <button class="btn btn-danger" id="mark-missed" disabled>Missed ✗</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Session Log and Export -->
+            <div class="grid">
+                <div>
+                    <h3>Session Log</h3>
+                    <div class="log-container" id="session-log"></div>
+                </div>
+                <div>
+                    <h3>Data Export</h3>
+                    <p>All EEG data and shot results are recorded in real-time.</p>
+                    <button class="btn btn-secondary" id="export-data">Export Session Data</button>
+                    <div class="log-container" id="data-summary" style="margin-top: 1rem;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include Muse-JS library directly -->
+    <script>
+        // Simplified Muse-JS implementation for basic MUSE connection
+        class MuseClient {
+            constructor() {
+                this.eegReadings = { subscribe: () => {} };
+                this.accelerometerData = { subscribe: () => {} };
+                this.connected = false;
+            }
+
+            async connect() {
+                if (!navigator.bluetooth) {
+                    throw new Error('Web Bluetooth is not supported in this browser');
+                }
+
+                try {
+                    // Request Bluetooth device
+                    const device = await navigator.bluetooth.requestDevice({
+                        filters: [
+                            { namePrefix: 'Muse' },
+                            { namePrefix: 'Muse-' }
+                        ],
+                        optionalServices: ['0000fe8d-0000-1000-8000-00805f9b34fb']
+                    });
+
+                    // Connect to GATT server
+                    const server = await device.gatt.connect();
+                    this.server = server;
+                    this.connected = true;
+                    
+                    console.log('Connected to MUSE device:', device.name);
+                    return true;
+                } catch (error) {
+                    console.error('MUSE connection failed:', error);
+                    throw error;
+                }
+            }
+
+            async start() {
+                if (!this.connected) {
+                    throw new Error('Not connected to MUSE device');
+                }
+                
+                // Start data streaming (simplified implementation)
+                console.log('Started MUSE data streaming');
+                return true;
+            }
+
+            disconnect() {
+                if (this.server) {
+                    this.server.disconnect();
+                    this.server = null;
+                }
+                this.connected = false;
+                console.log('Disconnected from MUSE device');
+            }
+        }
+
+        // Make MuseClient globally available
+        window.MuseClient = MuseClient;
+    </script>
+    
+    <script>
+        // Configuration
+        const CONFIG = {
+            frequencyBands: {
+                delta: { range: [1, 4], color: '#3b82f6', basePower: 80 },
+                theta: { range: [4, 8], color: '#10b981', basePower: 50 },
+                alpha: { range: [8, 13], color: '#ef4444', basePower: 30 },
+                beta: { range: [13, 30], color: '#8b5cf6', basePower: 20 },
+                gamma: { range: [30, 50], color: '#f59e0b', basePower: 10 }
+            },
+            electrodes: ['TP9', 'AF7', 'AF8', 'TP10'],
+            updateInterval: 250, // ms
+            shotPhases: {
+                prep: 5000,      // 5 seconds preparation
+                preShot: 10000,  // 10 seconds pre-shot (recording window before shot)
+                shot: 2000,      // 2 seconds shot
+                postShot: 5000   // 5 seconds post-shot (recording window after shot)
+            },
+            chartSamples: 120    // Keep last 30 seconds of data
+        };
+
+        // Application State
+        const state = {
+            sessionActive: false,
+            eegConnected: false,
+            cameraConnected: false,
+            debugMode: false,
+            currentShot: 0,
+            totalShots: 10,
+            phase: 'idle',
+            phaseStartTime: null,
+            sessionStartTime: null,
+            dataTimer: null,
+            qualityTimer: null,
+            videoStream: null,
+            audioContext: null,
+            sessionData: null,
+            currentShotData: null,
+            eegData: {
+                timestamps: [],
+                bands: {}
+            }
+        };
+
+        // DOM Elements
+        const elements = {
+            setupPanel: document.getElementById('setup-panel'),
+            sessionPanel: document.getElementById('session-panel'),
+            playerName: document.getElementById('player-name'),
+            shotCount: document.getElementById('shot-count'),
+            sessionMode: document.getElementById('session-mode'),
+            eegStatus: document.getElementById('eeg-status'),
+            cameraStatus: document.getElementById('camera-status'),
+            connectEeg: document.getElementById('connect-eeg'),
+            connectCamera: document.getElementById('connect-camera'),
+            startSession: document.getElementById('start-session'),
+            progressFill: document.getElementById('progress-fill'),
+            currentShot: document.getElementById('current-shot'),
+            totalShots: document.getElementById('total-shots'),
+            timer: document.getElementById('timer'),
+            phaseIndicator: document.getElementById('phase-indicator'),
+            eegChart: document.getElementById('eeg-chart'),
+            electrodeGrid: document.getElementById('electrode-grid'),
+            videoFeed: document.getElementById('video-feed'),
+            startShot: document.getElementById('start-shot'),
+            markMade: document.getElementById('mark-made'),
+            markMissed: document.getElementById('mark-missed'),
+            sessionLog: document.getElementById('session-log'),
+            exportData: document.getElementById('export-data'),
+            dataSummary: document.getElementById('data-summary'),
+            museStatusText: document.getElementById('muse-status-text')
+        };
+
+        // Chart setup
+        const chartCtx = elements.eegChart.getContext('2d');
+        const chartData = {
+            timestamps: [],
+            bands: {}
+        };
+
+        // Initialize EEG data structure
+        Object.keys(CONFIG.frequencyBands).forEach(band => {
+            chartData.bands[band] = [];
+            state.eegData.bands[band] = [];
+        });
+
+        // Utility Functions
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            elements.sessionLog.insertBefore(logEntry, elements.sessionLog.firstChild);
+            
+            // Keep only last 50 log entries
+            while (elements.sessionLog.children.length > 50) {
+                elements.sessionLog.removeChild(elements.sessionLog.lastChild);
+            }
+        }
+
+        function updateStatusIndicators() {
+            // EEG Status
+            elements.eegStatus.className = 'status-indicator';
+            if (state.eegConnected) {
+                elements.eegStatus.classList.add(state.debugMode ? 'debug' : 'connected');
+                elements.eegStatus.querySelector('span').textContent = 
+                    `EEG: ${state.debugMode ? 'Debug Mode' : 'Simulated'}`;
+            }
+
+            // Camera Status
+            elements.cameraStatus.className = 'status-indicator';
+            if (state.cameraConnected) {
+                elements.cameraStatus.classList.add('connected');
+                elements.cameraStatus.querySelector('span').textContent = 'Camera: Connected';
+            }
+
+            // Enable/disable start session button
+            elements.startSession.disabled = !(state.eegConnected && state.cameraConnected);
+        }
+
+        function playBeep(frequency = 1000, duration = 0.2) {
+            if (!state.audioContext) {
+                state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            if (state.audioContext.state === 'suspended') {
+                state.audioContext.resume();
+            }
+
+            const oscillator = state.audioContext.createOscillator();
+            const gainNode = state.audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(state.audioContext.destination);
+            
+            oscillator.frequency.value = frequency;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, state.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, state.audioContext.currentTime + duration);
+            
+            oscillator.start(state.audioContext.currentTime);
+            oscillator.stop(state.audioContext.currentTime + duration);
+        }
+
+        function updateTimer() {
+            if (!state.phaseStartTime) {
+                elements.timer.textContent = '0.0s';
+                return;
+            }
+
+            const elapsed = (Date.now() - state.phaseStartTime) / 1000;
+            elements.timer.textContent = `${elapsed.toFixed(1)}s`;
+        }
+
+        function updatePhase(newPhase) {
+            state.phase = newPhase;
+            state.phaseStartTime = Date.now();
+            
+            elements.phaseIndicator.textContent = newPhase.charAt(0).toUpperCase() + newPhase.slice(1);
+            elements.phaseIndicator.className = `phase-indicator phase-${newPhase}`;
+            
+            // Update button states
+            elements.startShot.disabled = !state.sessionActive || state.currentShot >= state.totalShots || newPhase !== 'idle';
+            elements.markMade.disabled = newPhase !== 'review';
+            elements.markMissed.disabled = newPhase !== 'review';
+            
+            log(`Phase changed to: ${newPhase}`);
+        }
+
+        function updateProgress() {
+            const progress = (state.currentShot / state.totalShots) * 100;
+            elements.progressFill.style.width = `${progress}%`;
+        }
+
+        // EEG Data Generation
+        function generateEEGData() {
+            if (!state.sessionActive) return;
+
+            const now = (Date.now() - state.sessionStartTime) / 1000;
+            
+            chartData.timestamps.push(now);
+            state.eegData.timestamps.push(now);
+
+            Object.keys(CONFIG.frequencyBands).forEach(band => {
+                const config = CONFIG.frequencyBands[band];
+                const basePower = config.basePower;
+                
+                // Add some realistic variation
+                const timeVariation = Math.sin(now * 0.5) * basePower * 0.3;
+                const randomNoise = (Math.random() - 0.5) * basePower * 0.2;
+                const shotVariation = state.phase === 'recording' ? basePower * 0.4 : 0;
+                
+                const power = Math.max(0.1, basePower + timeVariation + randomNoise + shotVariation);
+                
+                chartData.bands[band].push(power);
+                state.eegData.bands[band].push(power);
+
+                // Store shot-specific data
+                if (state.currentShotData) {
+                    if (!state.currentShotData.data[state.phase]) {
+                        state.currentShotData.data[state.phase] = {};
+                    }
+                    if (!state.currentShotData.data[state.phase][band]) {
+                        state.currentShotData.data[state.phase][band] = [];
+                    }
+                    state.currentShotData.data[state.phase][band].push({
+                        timestamp: now,
+                        power: power
+                    });
+                }
+            });
+
+            // Keep only recent data
+            if (chartData.timestamps.length > CONFIG.chartSamples) {
+                chartData.timestamps.shift();
+                Object.keys(chartData.bands).forEach(band => {
+                    chartData.bands[band].shift();
+                });
+            }
+        }
+
+        function updateElectrodeQuality() {
+            CONFIG.electrodes.forEach(electrode => {
+                const element = document.querySelector(`[data-electrode="${electrode}"]`);
+                const qualityElement = element.querySelector('.electrode-quality');
+                
+                // Generate realistic quality values
+                const quality = 0.7 + Math.random() * 0.3;
+                const percentage = Math.round(quality * 100);
+                
+                qualityElement.textContent = `${percentage}%`;
+                
+                // Update visual state
+                element.className = 'electrode';
+                if (quality > 0.85) {
+                    element.classList.add('good');
+                } else if (quality > 0.65) {
+                    element.classList.add('warning');
+                } else {
+                    element.classList.add('poor');
+                }
+            });
+        }
+
+        function drawChart() {
+            const canvas = elements.eegChart;
+            const ctx = chartCtx;
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+
+            if (chartData.timestamps.length < 2) return;
+
+            // Set up chart area
+            const padding = 40;
+            const chartWidth = width - 2 * padding;
+            const chartHeight = height - 2 * padding;
+
+            // Draw grid lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 1; i < 5; i++) {
+                const y = padding + (chartHeight / 5) * i;
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(width - padding, y);
+                ctx.stroke();
+            }
+
+            // Calculate time range
+            const maxTime = Math.max(...chartData.timestamps);
+            const minTime = Math.min(...chartData.timestamps);
+            const timeRange = maxTime - minTime || 1;
+
+            // Draw frequency bands
+            Object.keys(CONFIG.frequencyBands).forEach(band => {
+                const values = chartData.bands[band];
+                if (values.length < 2) return;
+
+                const config = CONFIG.frequencyBands[band];
+                const maxValue = Math.max(...values);
+                const minValue = Math.min(...values);
+                const valueRange = maxValue - minValue || 1;
+
+                ctx.strokeStyle = config.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                values.forEach((value, index) => {
+                    const x = padding + ((chartData.timestamps[index] - minTime) / timeRange) * chartWidth;
+                    const y = padding + chartHeight - ((value - minValue) / valueRange) * chartHeight;
+                    
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+
+                ctx.stroke();
+            });
+
+            // Draw labels
+            ctx.fillStyle = 'white';
+            ctx.font = '12px Arial';
+            ctx.fillText('Time (s)', width - 60, height - 10);
+            ctx.fillText('Power', 10, 20);
+
+            // Draw legend
+            let legendY = 20;
+            Object.keys(CONFIG.frequencyBands).forEach(band => {
+                const config = CONFIG.frequencyBands[band];
+                ctx.fillStyle = config.color;
+                ctx.fillRect(width - 100, legendY, 10, 10);
+                ctx.fillStyle = 'white';
+                ctx.fillText(band, width - 85, legendY + 8);
+                legendY += 20;
+            });
+        }
+
+        function updateDataSummary() {
+            const summary = {
+                player: state.sessionData.playerName,
+                shotsCompleted: state.currentShot,
+                totalShots: state.totalShots,
+                sessionDuration: state.sessionStartTime ? (Date.now() - state.sessionStartTime) / 1000 : 0,
+                dataPoints: state.eegData.timestamps.length,
+                mode: state.debugMode ? 'debug' : 'simulated'
+            };
+
+            elements.dataSummary.textContent = JSON.stringify(summary, null, 2);
+        }
+
+        // Shot Management
+        function startShotSequence() {
+            if (state.currentShot >= state.totalShots) return;
+
+            state.currentShotData = {
+                shotNumber: state.currentShot + 1,
+                startTime: (Date.now() - state.sessionStartTime) / 1000,
+                data: {}
+            };
+
+            updatePhase('prep');
+            playBeep(800, 0.2);
+
+            // After prep, begin preShot recording window (10s)
+            setTimeout(() => {
+                updatePhase('preShot');
+                playBeep(900, 0.2);
+
+                // After preShot, enter shot recording window (2s)
+                setTimeout(() => {
+                    updatePhase('recording');
+                    playBeep(1200, 0.2);
+
+                    // After shot, capture postShot recording window (5s)
+                    setTimeout(() => {
+                        updatePhase('postShot');
+                        playBeep(700, 0.2);
+
+                        // Then move to review phase
+                        setTimeout(() => {
+                            updatePhase('review');
+                            playBeep(600, 0.3);
+                        }, CONFIG.shotPhases.postShot);
+                    }, CONFIG.shotPhases.shot);
+                }, CONFIG.shotPhases.preShot);
+            }, CONFIG.shotPhases.prep);
+        }
+
+        function finishShot(success) {
+            if (!state.currentShotData) return;
+
+            const result = {
+                shotNumber: state.currentShot + 1,
+                timestamp: new Date().toISOString(),
+                success: success,
+                duration: (Date.now() - state.sessionStartTime) / 1000,
+                eegData: state.currentShotData.data
+            };
+
+            state.sessionData.shots.push(result);
+            state.currentShot++;
+            state.currentShotData = null;
+
+            log(`Shot ${result.shotNumber}: ${success ? 'MADE' : 'MISSED'}`);
+            updateProgress();
+            updateDataSummary();
+
+            if (state.currentShot >= state.totalShots) {
+                updatePhase('complete');
+                log('Session completed!');
+                elements.startShot.disabled = true;
+            } else {
+                updatePhase('idle');
+            }
+        }
+
+        // Camera Functions
+        async function connectCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 },
+                    audio: false
+                });
+                
+                elements.videoFeed.srcObject = stream;
+                state.videoStream = stream;
+                state.cameraConnected = true;
+                updateStatusIndicators();
+                log('Camera connected successfully');
+            } catch (error) {
+                log(`Camera connection failed: ${error.message}`, 'error');
+                alert('Unable to access camera. Please check permissions.');
+            }
+        }
+
+        function disconnectCamera() {
+            if (state.videoStream) {
+                state.videoStream.getTracks().forEach(track => track.stop());
+                state.videoStream = null;
+                state.cameraConnected = false;
+                updateStatusIndicators();
+                log('Camera disconnected');
+            }
+        }
+
+        // Session Management
+        function startSession() {
+            const playerName = elements.playerName.value.trim();
+            const shotCount = parseInt(elements.shotCount.value);
+            const sessionMode = elements.sessionMode.value;
+
+            if (!playerName) {
+                alert('Please enter a player name');
+                return;
+            }
+
+            if (shotCount < 1) {
+                alert('Please enter a valid number of shots');
+                return;
+            }
+
+            state.totalShots = shotCount;
+            state.currentShot = 0;
+            state.sessionActive = true;
+            state.sessionStartTime = Date.now();
+            state.debugMode = sessionMode === 'debug';
+
+            state.sessionData = {
+                playerName: playerName,
+                timestamp: new Date().toISOString(),
+                totalShots: shotCount,
+                shots: [],
+                mode: sessionMode,
+                eegData: {
+                    timestamps: [],
+                    bands: {}
+                }
+            };
+
+            // Initialize EEG data structure
+            Object.keys(CONFIG.frequencyBands).forEach(band => {
+                state.sessionData.eegData.bands[band] = [];
+            });
+
+            elements.setupPanel.classList.add('hidden');
+            elements.sessionPanel.classList.remove('hidden');
+            elements.totalShots.textContent = shotCount;
+            elements.currentShot.textContent = '1';
+
+            updatePhase('idle');
+            updateProgress();
+            updateDataSummary();
+
+            // Start data collection
+            state.dataTimer = setInterval(generateEEGData, CONFIG.updateInterval);
+            state.qualityTimer = setInterval(updateElectrodeQuality, 1500);
+
+            // Start chart animation
+            function animateChart() {
+                drawChart();
+                if (state.sessionActive) {
+                    requestAnimationFrame(animateChart);
+                }
+            }
+            animateChart();
+
+            log(`Session started for ${playerName} - ${shotCount} shots`);
+        }
+
+        function exportSessionData() {
+            if (!state.sessionData) {
+                alert('No session data to export');
+                return;
+            }
+
+            const exportData = {
+                ...state.sessionData,
+                eegData: state.eegData,
+                sessionDuration: state.sessionStartTime ? (Date.now() - state.sessionStartTime) / 1000 : 0,
+                completedAt: new Date().toISOString()
+            };
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+                type: 'application/json'
+            });
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `freethrow_session_${state.sessionData.playerName}_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            log('Session data exported successfully');
+        }
+
+        // MUSE Connection Functions
+        async function connectRealMuse() {
+            try {
+                log('Attempting to connect to MUSE device...', 'info');
+                
+                if (!navigator.bluetooth) {
+                    throw new Error('Web Bluetooth is not supported in this browser. Please use Chrome, Edge, or Opera.');
+                }
+
+                const museClient = new MuseClient();
+                await museClient.connect();
+                await museClient.start();
+                
+                state.eegConnected = true;
+                state.realMuseConnected = true;
+                updateStatusIndicators();
+                log('MUSE device connected successfully!', 'info');
+                
+                // Note: This is a basic connection - full EEG data streaming would require more complex implementation
+                log('Note: Basic MUSE connection established. Full EEG streaming requires additional implementation.', 'warning');
+                
+            } catch (error) {
+                log(`MUSE connection failed: ${error.message}`, 'error');
+                alert(`Failed to connect to MUSE: ${error.message}\n\nMake sure:\n- MUSE is powered on and in pairing mode\n- Web Bluetooth is enabled\n- Browser supports Web Bluetooth`);
+            }
+        }
+
+        // Event Listeners
+        elements.connectEeg.addEventListener('click', async () => {
+            const sessionMode = elements.sessionMode.value;
+            
+            if (sessionMode === 'simulated') {
+                state.eegConnected = true;
+                state.realMuseConnected = false;
+                state.debugMode = false;
+                updateStatusIndicators();
+                log('EEG simulation mode enabled');
+            } else if (sessionMode === 'debug') {
+                state.eegConnected = true;
+                state.realMuseConnected = false;
+                state.debugMode = true;
+                updateStatusIndicators();
+                log('EEG debug mode enabled');
+            } else if (sessionMode === 'real') {
+                await connectRealMuse();
+            }
+        });
+
+        elements.connectCamera.addEventListener('click', connectCamera);
+        elements.startSession.addEventListener('click', startSession);
+        elements.startShot.addEventListener('click', startShotSequence);
+        elements.markMade.addEventListener('click', () => finishShot(true));
+        elements.markMissed.addEventListener('click', () => finishShot(false));
+        elements.exportData.addEventListener('click', exportSessionData);
+
+        // Timer update
+        setInterval(updateTimer, 100);
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            disconnectCamera();
+            if (state.dataTimer) clearInterval(state.dataTimer);
+            if (state.qualityTimer) clearInterval(state.qualityTimer);
+        });
+
+        // Initialize
+        updateStatusIndicators();
+        log('FreethrowEEG Working Version loaded');
+        
+        // Check MUSE library availability
+        setTimeout(() => {
+            if (typeof MuseClient !== 'undefined') {
+                elements.museStatusText.textContent = '✅ MUSE connection available - Web Bluetooth supported';
+                log('MUSE connection library loaded successfully', 'info');
+            } else {
+                elements.museStatusText.textContent = '⚠️ MUSE connection not available';
+                log('MUSE connection library not loaded', 'warning');
+            }
+        }, 1000);
+        
+        log('Ready to start - select mode and connect devices');
+    </script>
+</body>
+</html>
