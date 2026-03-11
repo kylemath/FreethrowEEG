@@ -1191,6 +1191,9 @@
             state.currentShotData = null;
 
             log(`Shot ${result.shotNumber}: ${success ? 'MADE' : 'MISSED'}`);
+            elements.currentShot.textContent = state.currentShot >= state.totalShots
+                ? String(state.totalShots)
+                : String(state.currentShot + 1);
             updateProgress();
             updateDataSummary();
             updateAnalysisSourceAvailability();
@@ -2080,6 +2083,37 @@
         elements.dataType.addEventListener('change', updatePlots);
         elements.shotSelect.addEventListener('change', updatePlots);
         elements.bandSelect.addEventListener('change', updatePlots);
+
+        // Keyboard shortcuts
+        window.addEventListener('keydown', (event) => {
+            // Avoid interfering with typical browser shortcuts when modifiers are held
+            if (event.altKey || event.ctrlKey || event.metaKey) return;
+            if (event.repeat) return;
+
+            // Start shot: F5
+            if (event.key === 'F5') {
+                if (!elements.startShot.disabled) {
+                    event.preventDefault();
+                    elements.startShot.click();
+                }
+            }
+
+            // Miss: PageDown
+            if (event.key === 'PageDown') {
+                if (!elements.markMissed.disabled) {
+                    event.preventDefault();
+                    elements.markMissed.click();
+                }
+            }
+
+            // Make: PageUp
+            if (event.key === 'PageUp') {
+                if (!elements.markMade.disabled) {
+                    event.preventDefault();
+                    elements.markMade.click();
+                }
+            }
+        });
 
         // Timer update
         setInterval(updateTimer, 100);
