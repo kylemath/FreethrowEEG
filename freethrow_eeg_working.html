@@ -111,6 +111,38 @@
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
+        .filter-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin: 0.75rem 0 1rem;
+            padding: 0.9rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            background: rgba(15, 23, 42, 0.45);
+        }
+
+        .filter-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .filter-toggle input[type="checkbox"] {
+            width: auto;
+            accent-color: var(--secondary);
+            transform: scale(1.1);
+        }
+
+        .filter-note {
+            margin-top: -0.35rem;
+            margin-bottom: 1rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
         .btn {
             padding: 0.75rem 1.5rem;
             border: none;
@@ -201,46 +233,66 @@
             height: 100%;
         }
 
-        .electrode-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
-            margin-bottom: 1rem;
+        .head-map {
+            position: relative;
+            width: 220px;
+            height: 250px;
+            margin: 0 auto 1rem;
+        }
+
+        .head-map svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
         }
 
         .electrode {
+            position: absolute;
             text-align: center;
-            padding: 1rem;
-            background: var(--surface-light);
-            border-radius: 0.5rem;
-            border: 2px solid var(--border);
+            width: 56px;
+            transform: translate(-50%, -50%);
             transition: all 0.3s ease;
         }
 
-        .electrode.good {
+        .electrode-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            background: var(--surface-light);
+            margin: 0 auto 3px;
+            transition: all 0.3s ease;
+        }
+
+        .electrode.good .electrode-dot {
             border-color: var(--secondary);
-            background: rgba(16, 185, 129, 0.1);
+            background: var(--secondary);
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
         }
 
-        .electrode.warning {
-            border-color: var(--warning);
-            background: rgba(245, 158, 11, 0.1);
-        }
-
-        .electrode.poor {
+        .electrode.poor .electrode-dot {
             border-color: var(--danger);
-            background: rgba(239, 68, 68, 0.1);
+            background: var(--danger);
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
         }
 
         .electrode-name {
             font-weight: 600;
-            margin-bottom: 0.5rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            line-height: 1;
         }
 
         .electrode-quality {
-            font-size: 1.2rem;
+            font-size: 0.75rem;
             font-weight: 700;
+            line-height: 1.2;
         }
+
+        .electrode.good .electrode-quality { color: var(--secondary); }
+        .electrode.poor .electrode-quality { color: var(--danger); }
 
         .shot-controls {
             display: flex;
@@ -562,6 +614,17 @@
                 <!-- EEG Visualization -->
                 <div>
                     <h3>EEG Channels <span id="data-source-badge" style="font-size:0.75rem; padding:2px 8px; border-radius:4px; margin-left:8px; font-weight:600;"></span></h3>
+                    <div class="filter-controls">
+                        <label class="filter-toggle">
+                            <input type="checkbox" id="filter-notch" checked>
+                            <span>Notch 60 Hz</span>
+                        </label>
+                        <label class="filter-toggle">
+                            <input type="checkbox" id="filter-bandpass" checked>
+                            <span>Bandpass 0.01-30 Hz</span>
+                        </label>
+                    </div>
+                    <div class="filter-note">Live chart, band power, and signal quality all use the current filter settings. Raw EEG is still archived for export.</div>
                     <div class="chart-container">
                         <canvas class="chart" id="eeg-chart" width="400" height="300"></canvas>
                     </div>
@@ -572,20 +635,42 @@
                     
                     <!-- Electrode Quality -->
                     <h3>Signal Quality</h3>
-                    <div class="electrode-grid" id="electrode-grid">
-                        <div class="electrode" data-electrode="TP9">
-                            <div class="electrode-name">TP9</div>
-                            <div class="electrode-quality">--</div>
-                        </div>
-                        <div class="electrode" data-electrode="AF7">
+                    <div class="head-map" id="electrode-grid">
+                        <svg viewBox="0 0 220 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Head outline -->
+                            <ellipse cx="110" cy="138" rx="85" ry="100" stroke="#475569" stroke-width="2" fill="none"/>
+                            <!-- Left ear -->
+                            <ellipse cx="25" cy="145" rx="10" ry="22" stroke="#475569" stroke-width="1.5" fill="none"/>
+                            <!-- Right ear -->
+                            <ellipse cx="195" cy="145" rx="10" ry="22" stroke="#475569" stroke-width="1.5" fill="none"/>
+                            <!-- Nose -->
+                            <path d="M110 38 L103 22 Q110 16 117 22 Z" stroke="#475569" stroke-width="1.5" fill="rgba(71,85,105,0.3)"/>
+                            <!-- Centre line -->
+                            <line x1="110" y1="42" x2="110" y2="230" stroke="#334155" stroke-width="0.5" stroke-dasharray="4 4"/>
+                            <!-- Horizontal line -->
+                            <line x1="30" y1="138" x2="190" y2="138" stroke="#334155" stroke-width="0.5" stroke-dasharray="4 4"/>
+                        </svg>
+                        <!-- AF7: left forehead -->
+                        <div class="electrode" data-electrode="AF7" style="top: 30%; left: 36%;">
+                            <div class="electrode-dot"></div>
                             <div class="electrode-name">AF7</div>
                             <div class="electrode-quality">--</div>
                         </div>
-                        <div class="electrode" data-electrode="AF8">
+                        <!-- AF8: right forehead -->
+                        <div class="electrode" data-electrode="AF8" style="top: 30%; left: 64%;">
+                            <div class="electrode-dot"></div>
                             <div class="electrode-name">AF8</div>
                             <div class="electrode-quality">--</div>
                         </div>
-                        <div class="electrode" data-electrode="TP10">
+                        <!-- TP9: left ear / temporal -->
+                        <div class="electrode" data-electrode="TP9" style="top: 55%; left: 14%;">
+                            <div class="electrode-dot"></div>
+                            <div class="electrode-name">TP9</div>
+                            <div class="electrode-quality">--</div>
+                        </div>
+                        <!-- TP10: right ear / temporal -->
+                        <div class="electrode" data-electrode="TP10" style="top: 55%; left: 86%;">
+                            <div class="electrode-dot"></div>
                             <div class="electrode-name">TP10</div>
                             <div class="electrode-quality">--</div>
                         </div>
@@ -877,8 +962,19 @@
         const IMU_SAMPLE_RATE = 52;
         const IMU_SAMPLES_PER_PACKET = 3;
         const DISPLAY_SECONDS = 10;
+        const QUALITY_WINDOW_SECONDS = 2;
+        const QUALITY_WINDOW_SAMPLES = QUALITY_WINDOW_SECONDS * SAMPLE_RATE;
         const DISPLAY_BUFFER_SIZE = DISPLAY_SECONDS * SAMPLE_RATE;
         const IMU_DISPLAY_BUFFER_SIZE = DISPLAY_SECONDS * IMU_SAMPLE_RATE;
+        const DEFAULT_FILTER_SETTINGS = {
+            notchEnabled: true,
+            bandpassEnabled: true,
+            notchFrequencyHz: 60,
+            notchQ: 30,
+            highpassHz: 0.01,
+            lowpassHz: 30,
+            biquadQ: Math.SQRT1_2
+        };
 
         const CONFIG = {
             frequencyBands: {
@@ -941,6 +1037,9 @@
             streamWriter: null,
             streamPending: [],
             phaseTimeouts: [],
+            latestSignalQuality: {},
+            signalQualityHistory: [],
+            filterSettings: { ...DEFAULT_FILTER_SETTINGS },
             eegData: {
                 timestamps: [],
                 bands: {}
@@ -954,6 +1053,10 @@
         // Raw channel archive (full session, for export)
         const channelArchive = {};
         CONFIG.electrodes.forEach(ch => { channelArchive[ch] = []; });
+        CONFIG.electrodes.forEach(ch => {
+            state.latestSignalQuality[ch] = null;
+        });
+        const eegFilterState = {};
 
         // IMU sample buffers for live chart and export
         const imuDisplay = {};
@@ -1003,6 +1106,8 @@
             sessionLog: document.getElementById('session-log'),
             endSession: document.getElementById('end-session'),
             dataSummary: document.getElementById('data-summary'),
+            filterNotch: document.getElementById('filter-notch'),
+            filterBandpass: document.getElementById('filter-bandpass'),
             museStatusText: document.getElementById('muse-status-text'),
             museDeviceName: document.getElementById('muse-device-name'),
             museStreamStatus: document.getElementById('muse-stream-status'),
@@ -1065,12 +1170,117 @@
 
         // ===== EEG Data Pipeline (RxJS) =====
 
+        function createBiquadFilter(type, frequencyHz, sampleRate, q) {
+            const omega = 2 * Math.PI * frequencyHz / sampleRate;
+            const sinOmega = Math.sin(omega);
+            const cosOmega = Math.cos(omega);
+            const alpha = sinOmega / (2 * q);
+            let b0, b1, b2, a0, a1, a2;
+
+            if (type === 'notch') {
+                b0 = 1;
+                b1 = -2 * cosOmega;
+                b2 = 1;
+                a0 = 1 + alpha;
+                a1 = -2 * cosOmega;
+                a2 = 1 - alpha;
+            } else if (type === 'highpass') {
+                b0 = (1 + cosOmega) / 2;
+                b1 = -(1 + cosOmega);
+                b2 = (1 + cosOmega) / 2;
+                a0 = 1 + alpha;
+                a1 = -2 * cosOmega;
+                a2 = 1 - alpha;
+            } else if (type === 'lowpass') {
+                b0 = (1 - cosOmega) / 2;
+                b1 = 1 - cosOmega;
+                b2 = (1 - cosOmega) / 2;
+                a0 = 1 + alpha;
+                a1 = -2 * cosOmega;
+                a2 = 1 - alpha;
+            } else {
+                throw new Error(`Unsupported filter type: ${type}`);
+            }
+
+            return {
+                b0: b0 / a0,
+                b1: b1 / a0,
+                b2: b2 / a0,
+                a1: a1 / a0,
+                a2: a2 / a0,
+                x1: 0,
+                x2: 0,
+                y1: 0,
+                y2: 0
+            };
+        }
+
+        function processBiquadSample(filter, sample) {
+            const output =
+                filter.b0 * sample +
+                filter.b1 * filter.x1 +
+                filter.b2 * filter.x2 -
+                filter.a1 * filter.y1 -
+                filter.a2 * filter.y2;
+
+            filter.x2 = filter.x1;
+            filter.x1 = sample;
+            filter.y2 = filter.y1;
+            filter.y1 = output;
+            return output;
+        }
+
+        function createElectrodeFilterChain() {
+            return {
+                notch: createBiquadFilter('notch', state.filterSettings.notchFrequencyHz, SAMPLE_RATE, state.filterSettings.notchQ),
+                highpass: createBiquadFilter('highpass', state.filterSettings.highpassHz, SAMPLE_RATE, state.filterSettings.biquadQ),
+                lowpass: createBiquadFilter('lowpass', state.filterSettings.lowpassHz, SAMPLE_RATE, state.filterSettings.biquadQ)
+            };
+        }
+
+        function resetEegFilterState() {
+            CONFIG.electrodes.forEach(ch => {
+                eegFilterState[ch] = createElectrodeFilterChain();
+            });
+        }
+
+        function applyConfiguredFilters(electrode, samples) {
+            const chain = eegFilterState[electrode];
+            if (!chain) return samples.slice();
+
+            return samples.map((rawValue) => {
+                let filteredValue = rawValue;
+                if (state.filterSettings.notchEnabled) {
+                    filteredValue = processBiquadSample(chain.notch, filteredValue);
+                }
+                if (state.filterSettings.bandpassEnabled) {
+                    filteredValue = processBiquadSample(chain.highpass, filteredValue);
+                    filteredValue = processBiquadSample(chain.lowpass, filteredValue);
+                }
+                return filteredValue;
+            });
+        }
+
+        function rebuildProcessedEegBuffers() {
+            resetEegFilterState();
+            CONFIG.electrodes.forEach(ch => {
+                channelDisplay[ch].length = 0;
+                if (channelArchive[ch].length === 0) return;
+                const filtered = applyConfiguredFilters(ch, channelArchive[ch]);
+                channelDisplay[ch].push(...filtered.slice(-DISPLAY_BUFFER_SIZE));
+            });
+        }
+
         function pushSamples(electrode, samples) {
-            const display = channelDisplay[electrode];
             const archive = channelArchive[electrode];
             for (let i = 0; i < samples.length; i++) {
-                display.push(samples[i]);
                 archive.push(samples[i]);
+            }
+
+            const filteredSamples = applyConfiguredFilters(electrode, samples);
+            const display = channelDisplay[electrode];
+            for (let i = 0; i < filteredSamples.length; i++) {
+                display.push(filteredSamples[i]);
             }
             if (display.length > DISPLAY_BUFFER_SIZE) {
                 display.splice(0, display.length - DISPLAY_BUFFER_SIZE);
@@ -1182,6 +1392,7 @@
                 imuArchive[ch].length = 0;
             });
             phaseMarkers.length = 0;
+            resetEegFilterState();
 
             const shared$ = eeg$.pipe(rxjs.share());
 
@@ -1497,35 +1708,139 @@
             elements.progressFill.style.width = `${progress}%`;
         }
 
-        function updateElectrodeQuality() {
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function computeImuHealthMetrics() {
+            const recentWindow = Math.min(IMU_SAMPLE_RATE * 2, imuDisplay[CONFIG.imuChannels[0]]?.length || 0);
+            if (recentWindow < 8) {
+                return {
+                    isFlat: false,
+                    activeChannels: 0
+                };
+            }
+
+            let activeChannels = 0;
+            CONFIG.imuChannels.forEach((channel) => {
+                const recent = imuDisplay[channel].slice(-recentWindow);
+                let min = Infinity;
+                let max = -Infinity;
+                for (let i = 0; i < recent.length; i++) {
+                    const value = recent[i];
+                    if (value < min) min = value;
+                    if (value > max) max = value;
+                }
+                if ((max - min) > 0.5) activeChannels++;
+            });
+
+            return {
+                isFlat: activeChannels === 0,
+                activeChannels
+            };
+        }
+
+        function computeElectrodeQualityMetrics(samples) {
+            if (!Array.isArray(samples) || samples.length < QUALITY_WINDOW_SAMPLES) {
+                return null;
+            }
+
+            const recent = samples.slice(-QUALITY_WINDOW_SAMPLES);
+            const mean = recent.reduce((sum, value) => sum + value, 0) / recent.length;
+            const variance = recent.reduce((sum, value) => sum + (value - mean) ** 2, 0) / recent.length;
+            const std = Math.sqrt(variance);
+
+            let min = Infinity;
+            let max = -Infinity;
+            let clippingCount = 0;
+            for (let i = 0; i < recent.length; i++) {
+                const value = recent[i];
+                if (value < min) min = value;
+                if (value > max) max = value;
+                if (Math.abs(value) > 450) clippingCount++;
+            }
+
+            const peakToPeak = max - min;
+            const clippingFraction = clippingCount / recent.length;
+
+            const isFlat = std < 0.05 && peakToPeak < 0.5;
+            const isSaturated = clippingFraction > 0.25;
+
+            let quality = 0.6;
+            let category = 'ok';
+
+            if (isFlat || isSaturated) {
+                quality = 0.2;
+                category = 'poor';
+            } else if (std >= 1 && std <= 120 && peakToPeak >= 4 && peakToPeak <= 500 && clippingFraction < 0.02) {
+                quality = 0.9;
+                category = 'great';
+            }
+
+            return {
+                quality,
+                category,
+                label: category === 'great' ? 'Great' : (category === 'ok' ? 'OK' : 'Poor'),
+                mean: Number(mean.toFixed(2)),
+                std: Number(std.toFixed(2)),
+                peakToPeak: Number(peakToPeak.toFixed(2)),
+                clippingFraction: Number(clippingFraction.toFixed(4)),
+                windowSamples: recent.length,
+                isFlat,
+                isSaturated
+            };
+        }
+
+        function updateElectrodeQuality(label) {
+            const snapshot = {
+                timestamp: new Date().toISOString(),
+                sampleIdx: channelArchive[CONFIG.electrodes[0]].length,
+                imu: computeImuHealthMetrics(),
+                electrodes: {}
+            };
+            if (label) snapshot.label = label;
+
             CONFIG.electrodes.forEach(electrode => {
                 const element = document.querySelector(`[data-electrode="${electrode}"]`);
                 const qualityElement = element.querySelector('.electrode-quality');
                 const buf = channelDisplay[electrode];
 
-                if (buf.length < SAMPLE_RATE) {
+                const metrics = computeElectrodeQualityMetrics(buf);
+                if (!metrics) {
                     qualityElement.textContent = '--';
                     element.className = 'electrode';
+                    state.latestSignalQuality[electrode] = null;
                     return;
                 }
 
-                const recent = buf.slice(-SAMPLE_RATE);
-                const mean = recent.reduce((a, b) => a + b, 0) / recent.length;
-                const variance = recent.reduce((a, b) => a + (b - mean) ** 2, 0) / recent.length;
-                const std = Math.sqrt(variance);
+                state.latestSignalQuality[electrode] = metrics;
+                snapshot.electrodes[electrode] = metrics;
 
-                let quality;
-                if (std < 0.5 || std > 300) quality = 0.1;
-                else if (std < 3 || std > 150) quality = 0.5;
-                else quality = 0.85;
+                snapshot.electrodes[electrode] = {
+                    ...metrics,
+                    imuFlat: snapshot.imu.isFlat
+                };
+                state.latestSignalQuality[electrode] = snapshot.electrodes[electrode];
 
-                const percentage = Math.round(quality * 100);
-                qualityElement.textContent = `${percentage}%`;
+                qualityElement.textContent = metrics.label;
                 element.className = 'electrode';
-                if (quality > 0.7) element.classList.add('good');
-                else if (quality > 0.3) element.classList.add('warning');
-                else element.classList.add('poor');
+                if (metrics.category === 'poor') element.classList.add('poor');
+                else element.classList.add('good');
             });
+
+            if (Object.keys(snapshot.electrodes).length > 0) {
+                state.signalQualityHistory.push(snapshot);
+                if (state.sessionData) {
+                    state.sessionData.signalQuality = state.signalQualityHistory;
+                }
+                queueLine({
+                    type: 'signal_quality',
+                    timestamp: snapshot.timestamp,
+                    sampleIdx: snapshot.sampleIdx,
+                    filters: { ...state.filterSettings },
+                    electrodes: snapshot.electrodes
+                });
+            }
         }
 
         function drawStackedChart({ canvas, ctx, channels, dataMap, colorMap, sampleRate, markers = [] }) {
@@ -1644,6 +1959,7 @@
         }
 
         function updateDataSummary() {
+            if (!state.sessionData) return;
             const totalEegSamples = CONFIG.electrodes.reduce((sum, ch) => sum + channelArchive[ch].length, 0);
             const totalImuSamples = CONFIG.imuChannels.reduce((sum, ch) => sum + imuArchive[ch].length, 0);
             const summary = {
@@ -1657,10 +1973,31 @@
                 rawChannelSamples: totalEegSamples + totalImuSamples,
                 sampleRate: SAMPLE_RATE,
                 imuSampleRate: IMU_SAMPLE_RATE,
+                latestSignalQuality: state.latestSignalQuality,
+                filters: state.filterSettings,
                 mode: state.realMuseConnected ? 'real' : (state.debugMode ? 'debug' : 'simulated')
             };
 
             elements.dataSummary.textContent = JSON.stringify(summary, null, 2);
+        }
+
+        function handleFilterSettingsChange() {
+            state.filterSettings.notchEnabled = !!elements.filterNotch.checked;
+            state.filterSettings.bandpassEnabled = !!elements.filterBandpass.checked;
+
+            rebuildProcessedEegBuffers();
+            updateElectrodeQuality();
+
+            if (state.sessionData) {
+                state.sessionData.filters = { ...state.filterSettings };
+                updateDataSummary();
+            }
+
+            log(
+                `EEG filters updated: notch ${state.filterSettings.notchEnabled ? 'ON' : 'OFF'}, ` +
+                `bandpass ${state.filterSettings.bandpassEnabled ? 'ON' : 'OFF'}`,
+                'info'
+            );
         }
 
         // Shot Management
@@ -1848,6 +2185,12 @@
 
             state.eegData.timestamps = [];
             state.eegData.bands = {};
+            state.signalQualityHistory = [];
+            state.filterSettings.notchEnabled = elements.filterNotch.checked;
+            state.filterSettings.bandpassEnabled = elements.filterBandpass.checked;
+            CONFIG.electrodes.forEach(ch => {
+                state.latestSignalQuality[ch] = null;
+            });
             Object.keys(CONFIG.frequencyBands).forEach(band => {
                 state.eegData.bands[band] = [];
             });
@@ -1861,6 +2204,8 @@
                 sampleRate: SAMPLE_RATE,
                 imuSampleRate: IMU_SAMPLE_RATE,
                 imuChannels: CONFIG.imuChannels,
+                filters: { ...state.filterSettings },
+                signalQuality: [],
                 eegData: {
                     timestamps: [],
                     bands: {}
@@ -1891,12 +2236,14 @@
                 imuChannels: CONFIG.imuChannels,
                 totalShots: shotCount,
                 mode: sessionMode,
+                filters: state.filterSettings,
                 wallClockStartISO: state.sessionData.timestamp,
                 wallClockStartMs: state.sessionStartTime
             });
 
             state.dataTimer = setInterval(processEEGData, CONFIG.updateInterval);
             state.qualityTimer = setInterval(updateElectrodeQuality, 1500);
+            setTimeout(() => updateElectrodeQuality('start'), 2000);
 
             function animateChart() {
                 drawChart();
@@ -1929,7 +2276,11 @@
                 state.eegSubscription = null;
             }
             if (state.dataTimer) { clearInterval(state.dataTimer); state.dataTimer = null; }
-            if (state.qualityTimer) { clearInterval(state.qualityTimer); state.qualityTimer = null; }
+            if (state.qualityTimer) {
+                clearInterval(state.qualityTimer);
+                state.qualityTimer = null;
+            }
+            updateElectrodeQuality('end');
             if (state._museSampleInterval) { clearInterval(state._museSampleInterval); state._museSampleInterval = null; }
 
             if (state.audioContext) {
@@ -1976,6 +2327,8 @@
                     sampleDurationSec,
                     clockDriftSec: wallClockDurationSec - sampleDurationSec
                 },
+                filters: state.filterSettings,
+                signalQuality: state.signalQualityHistory,
                 shots: state.sessionData.shots,
                 rawChannels,
                 rawImuChannels,
@@ -2742,6 +3095,8 @@
         elements.dataType.addEventListener('change', updatePlots);
         elements.shotSelect.addEventListener('change', updatePlots);
         elements.bandSelect.addEventListener('change', updatePlots);
+        elements.filterNotch.addEventListener('change', handleFilterSettingsChange);
+        elements.filterBandpass.addEventListener('change', handleFilterSettingsChange);
 
         // Keyboard shortcuts — only active during a session
         window.addEventListener('keydown', (event) => {
@@ -2781,6 +3136,9 @@
         });
 
         // Initialize
+        elements.filterNotch.checked = state.filterSettings.notchEnabled;
+        elements.filterBandpass.checked = state.filterSettings.bandpassEnabled;
+        resetEegFilterState();
         updateStatusIndicators();
         log('FreethrowEEG Working Version loaded');
         
