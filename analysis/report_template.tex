@@ -8,7 +8,6 @@
 \usepackage{float}
 \usepackage{caption}
 \usepackage{subcaption}
-\usepackage[style=apa,backend=biber]{biblatex}
 \usepackage{setspace}
 
 \hypersetup{colorlinks=true, linkcolor=NavyBlue, citecolor=NavyBlue, urlcolor=NavyBlue}
@@ -16,7 +15,7 @@
 
 \title{%
   Portable EEG Correlates of Basketball Free-Throw Performance:\\
-  Pilot Session Analysis Report
+  Multi-Block Session Analysis Report
 }
 \author{Lukas Laskowski \and Kyle E.\ Mathewson}
 \date{%%DATE%%}
@@ -26,15 +25,17 @@
 
 % ────────────────────────────────────────────────────────────────────────────
 \begin{abstract}
-This report presents the analysis of a single pilot session recorded using the
-FreethrowEEG system. Continuous EEG band power (delta, theta, alpha, beta,
-gamma) was recorded from a Muse~2 headset while the participant performed
-%%NTOTAL%% free throws (%%NMADE%% made, %%NMISSED%% missed; %%SHOOTPCT%%\%).
-Shot-locked epochs were extracted and compared between successful and
-unsuccessful attempts. Concurrent video was analysed with MediaPipe pose
-estimation to extract biomechanical features aligned with neural dynamics.
-Descriptive statistics, time-series visualizations, pose kinematics, and
-exploratory inferential tests are reported. %%ABSTRACT_EXTRA%%
+This report presents the analysis of a multi-block free-throw session recorded
+using the FreethrowEEG system. The participant performed %%NBLOCKS%% blocks of
+40 free throws each, yielding %%NTOTAL%% analysed shots (%%NMADE%% made,
+%%NMISSED%% missed; %%SHOOTPCT%%\%) after data quality screening and exclusion
+of experimenter-flagged trials. Continuous EEG band power (delta, theta, alpha,
+beta, gamma) was recorded from a Muse~2 headset. Shot-locked epochs were
+extracted and compared between successful and unsuccessful attempts. Video was
+recorded for two of the three blocks; post-hoc pose estimation using MediaPipe
+was performed on the available video to extract biomechanical features aligned
+with neural dynamics. Descriptive statistics, time-series visualizations, pose
+kinematics, and exploratory inferential tests are reported. %%ABSTRACT_EXTRA%%
 \end{abstract}
 
 % ────────────────────────────────────────────────────────────────────────────
@@ -45,8 +46,13 @@ motor performance, including precision sport tasks such as archery, shooting,
 and golf putting. A consistent finding in the literature is that successful
 performers exhibit distinct pre-performance EEG patterns, particularly reduced
 alpha desynchronization and modulated theta activity, compared to unsuccessful
-attempts. This pilot session tests whether such patterns are detectable using a
+attempts. This session tests whether such patterns are detectable using a
 portable, four-channel Muse~2 headset during basketball free-throw shooting.
+
+This report extends an initial pilot by using real EEG data collected over
+multiple blocks, providing substantially more statistical power ($N =
+$%%NTOTAL%% shots) and improved experimental control including better video
+framing and consistent shot-cue logging.
 
 The present analysis focuses on:
 \begin{enumerate}
@@ -54,18 +60,35 @@ The present analysis focuses on:
   \item Comparing pre-shot, execution, and post-shot neural signatures between
         made and missed free throws;
   \item Evaluating the theta/alpha ratio as a candidate readiness marker;
-  \item Examining shot-by-shot band power progression across the session.
+  \item Examining shot-by-shot band power progression across the session;
+  \item Biomechanical pose analysis from concurrent video (where available).
 \end{enumerate}
 
 % ────────────────────────────────────────────────────────────────────────────
 \section{Methods}
 
 \subsection{Participant and Task}
-The participant (%%PLAYER%%) performed %%NTOTAL%% free throws during a single
-session lasting %%DURATION%% minutes. Each trial followed a structured protocol:
-a preparation phase ($\sim$5\,s), a pre-shot baseline ($\sim$5\,s), shot
-execution ($\sim$2\,s), post-shot recording ($\sim$3\,s), and a review phase.
-Shot outcome (made/missed) was manually coded.
+The participant (%%PLAYER%%) performed %%NBLOCKS%% blocks of 40 free throws
+(120 total), collected in a public gymnasium on a single day. The full session
+spanned approximately %%DURATION%% minutes of active recording. Each trial
+followed a structured protocol: a preparation phase ($\sim$5\,s), a pre-shot
+baseline ($\sim$5\,s), shot execution ($\sim$2\,s), post-shot recording
+($\sim$3\,s), and a review phase. Shot outcome (made/missed) was coded by the
+participant.
+
+\subsection{Data Quality and Exclusions}
+%%BLOCK_SUMMARY%% In Block~1, an EEG recording buffer issue caused the raw
+data stream to stop after approximately 3 minutes, yielding valid EEG for only
+the first 3 shots; the remaining 37 shots in that block had degenerate
+timestamps and were excluded from analysis. The experimenter also reported
+missed shot cues on certain trials: Block~1 shots 18 and 35, Block~2 shot 34,
+and Block~3 shots 8, 21, 22, and 25 were excluded. After all filtering,
+%%NTOTAL%% shots were retained for EEG analysis (%%NMADE%% made, %%NMISSED%%
+missed; %%SHOOTPCT%%\% accuracy).
+
+Video was recorded for Blocks~1 and 3 but not for Block~2 (the video file did
+not save). Due to the EEG timing issues in Block~1, video analysis was
+performed primarily on Block~3 (%%NVIDEO_SHOTS%% shots).
 
 \subsection{EEG Recording}
 EEG was recorded continuously using a Muse~2 headband (four channels: TP9,
@@ -74,18 +97,18 @@ using a 1-second sliding window with 25\% overlap. A 4th-order Butterworth
 bandpass filter was applied to extract five standard frequency bands: delta
 (1--4\,Hz), theta (4--8\,Hz), alpha (8--13\,Hz), beta (13--30\,Hz), and gamma
 (30--50\,Hz). Environmental line noise was removed via a Butterworth notch
-filter at 60\,Hz. Power values were averaged across all four channels.
+filter at 60\,Hz. For the continuous power analysis, raw electrode signals were
+averaged across all four channels and band power was recomputed offline.
 
 \subsection{Video Recording and Pose Estimation}
-Video was recorded simultaneously at 30\,fps (640$\times$480, WebM/VP9 codec)
-using the device camera. The recording started with the session and timestamps
-in the EEG data file map directly to video time. Post-hoc pose estimation was
-performed using the MediaPipe Pose Landmarker (heavy model), extracting 33
-body landmarks per frame. Biomechanical features---elbow angle
-(shoulder--elbow--wrist), wrist height, knee angle (hip--knee--ankle), and body
-lean angle (torso deviation from vertical)---were computed for each frame
-during the shot execution phase. Ball release was estimated as the frame where
-wrist velocity peaked while the wrist was near its highest position.
+Video was recorded simultaneously at 30\,fps (WebM/VP9 codec) using the device
+camera. Post-hoc pose estimation was performed using the MediaPipe Pose
+Landmarker (heavy model), extracting 33 body landmarks per frame.
+Biomechanical features---elbow angle (shoulder--elbow--wrist), wrist height,
+knee angle (hip--knee--ankle), and body lean angle (torso deviation from
+vertical)---were computed for each frame during the shot execution phase. Ball
+release was estimated as the frame where wrist velocity peaked while the wrist
+was near its highest position.
 
 \subsection{Analysis}
 Continuous EEG data were segmented into shot-locked epochs aligned to the onset
@@ -93,9 +116,11 @@ of the execution phase. Epochs were interpolated onto a common time grid
 ($-$12 to $+$8\,s relative to shot onset at 0.25\,s resolution) and averaged
 separately for made and missed shots. Phase-wise mean power was compared using
 Welch's $t$-test (unequal variances) and the Mann--Whitney $U$ test. Effect
-sizes are reported as Cohen's $d$. Given the pilot nature of this data set
-(%%NTOTAL%% shots), all inferential statistics should be interpreted with
-caution.
+sizes are reported as Cohen's $d$.
+
+All %%NTOTAL%% shots with valid EEG data across all three blocks were used for
+the EEG analyses (Figures~1--8 and Table~1). Video-based analyses
+(Figures~9--13) used only the subset of shots from blocks with available video.
 
 Individual shot clips were extracted from the video, and stop-motion frame
 sequences were generated for each trial. Average frame composites were created
@@ -107,26 +132,30 @@ renderings from all shots within a group.
 \section{Results}
 
 \subsection{Session Overview}
-The participant completed %%NTOTAL%% shots over %%DURATION%% minutes
-(%%SHOOTPCT%%\% accuracy). Figure~\ref{fig:raster} shows the session timeline
-with shot phases and outcomes overlaid on the continuous alpha power trace.
+The participant completed %%NTOTAL%% analysed shots across %%NBLOCKS%% blocks
+over approximately %%DURATION%% minutes of active recording (%%SHOOTPCT%%\%
+accuracy). Figure~\ref{fig:raster} shows the session timeline with shot phases
+and outcomes overlaid on the continuous alpha power trace. Block boundaries are
+indicated by vertical dashed lines.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figures/fig_shot_raster.pdf}
   \caption{Session timeline. Each vertical line marks a shot (green = made,
-  red = missed). Shaded regions indicate trial phases.}
+  red = missed). Shaded regions indicate trial phases. Dotted grey lines
+  mark block boundaries.}
   \label{fig:raster}
 \end{figure}
 
 \subsection{Continuous Band Power}
-Figure~\ref{fig:continuous} shows the five frequency bands across the full
-session. %%CONTINUOUS_INTERP%%
+Figure~\ref{fig:continuous} shows the five frequency bands across all blocks.
+%%CONTINUOUS_INTERP%%
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figures/fig_continuous_power.pdf}
-  \caption{Continuous band power (delta through gamma) over the entire session.
+  \caption{Continuous band power (delta through gamma) over all blocks. Band
+  power was computed offline from the average of four electrode channels.
   Dashed vertical lines indicate shot execution (green = made, red = missed).}
   \label{fig:continuous}
 \end{figure}
@@ -134,7 +163,7 @@ session. %%CONTINUOUS_INTERP%%
 \subsection{Signal Filtering}
 Figure~\ref{fig:filtering} demonstrates the effect of low-pass, high-pass, and
 bandpass Butterworth filtering applied to the raw delta-band signal from the
-first 60 seconds of the session.
+first 60 seconds of recording.
 
 \begin{figure}[H]
   \centering
@@ -147,7 +176,8 @@ first 60 seconds of the session.
 
 \subsection{Shot-Locked Averages}
 Figure~\ref{fig:shotlocked} shows mean band power ($\pm$ SEM) locked to the
-onset of the execution phase, averaged across all %%NTOTAL%% shots.
+onset of the execution phase, averaged across all %%NTOTAL%% shots from all
+blocks.
 
 \begin{figure}[H]
   \centering
@@ -211,8 +241,8 @@ Band & Made $M$ (SD) & Missed $M$ (SD) & $t$ & $p$ & $U$ & $d$ \\
 \end{figure}
 
 \subsection{Shot-by-Shot Progression}
-Figure~\ref{fig:progression} tracks pre-shot band power across the 10 shots.
-%%PROGRESSION_INTERP%%
+Figure~\ref{fig:progression} tracks pre-shot band power across the %%NTOTAL%%
+shots. %%PROGRESSION_INTERP%%
 
 \begin{figure}[H]
   \centering
@@ -225,12 +255,13 @@ Figure~\ref{fig:progression} tracks pre-shot band power across the 10 shots.
 % ────────────────────────────────────────────────────────────────────────────
 \section{Video and Pose Estimation Analysis}
 
-In addition to EEG, the session video was recorded continuously at 30\,fps
-(640$\times$480 resolution). Post-hoc pose estimation was performed using
-MediaPipe Pose (heavy model) to extract 33 body landmarks per frame.
-Biomechanical features---elbow angle, wrist height, knee angle, and body lean
-angle---were computed across the shot execution phase for each trial and
-compared between made and missed shots.
+Video was recorded for Blocks~1 and 3, but not for Block~2 (video did not
+save). Due to EEG timing synchronization issues in Block~1, video-based
+analyses were performed on Block~3's %%NVIDEO_SHOTS%% shots only. Post-hoc
+pose estimation was performed using MediaPipe Pose (heavy model) to extract 33
+body landmarks per frame. Biomechanical features---elbow angle, wrist height,
+knee angle, and body lean angle---were computed across the shot execution phase
+for each trial and compared between made and missed shots.
 
 \subsection{Shot Stop-Motion Montage}
 Figure~\ref{fig:montage} presents a frame-by-frame stop-motion decomposition
@@ -241,7 +272,7 @@ lower rows (red borders).
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figures/fig_shot_montage.pdf}
-  \caption{Stop-motion montage of all shots during the execution phase. Pose
+  \caption{Stop-motion montage of shots during the execution phase. Pose
   skeleton overlays are drawn semi-transparently. Border colour indicates
   outcome (green = made, red = missed).}
   \label{fig:montage}
@@ -312,23 +343,31 @@ with an absolute difference image highlighting regions of greatest divergence.
 %%DISCUSSION%%
 
 \subsection{Limitations}
-This analysis is based on a single pilot session with %%NTOTAL%% shots
-(%%NMADE%% made), which severely limits statistical power. The Muse~2 provides
-only four channels, precluding source localization or detailed topographic
-analysis. Band power values represent averages across all channels, which may
-obscure hemisphere-specific effects. Future sessions with larger sample sizes
-are needed to draw reliable conclusions.
+This analysis is based on %%NTOTAL%% shots across %%NBLOCKS%% blocks, after
+exclusion of trials with data quality issues and experimenter-flagged missed
+cues. Block~1's EEG recording terminated early, yielding only 3 usable shots
+from that block. Block~2 lacked video, limiting biomechanical analysis to
+Block~3 only. The Muse~2 provides only four channels, precluding source
+localization or detailed topographic analysis. Band power values represent
+averages across all channels, which may obscure hemisphere-specific effects.
+The participant noted increasing fatigue across blocks, particularly in
+Block~3, which may confound longitudinal comparisons. Future sessions with
+multiple participants and counterbalanced block ordering are needed to draw
+reliable conclusions.
 
 % ────────────────────────────────────────────────────────────────────────────
 \section{Conclusion}
 
-This pilot analysis demonstrates that the FreethrowEEG system can successfully
-record and analyse EEG band power during free-throw shooting with a portable
-Muse headset. %%CONCLUSION_EXTRA%% The addition of video-based pose estimation
-provides a complementary kinematic dimension, enabling time-aligned analysis of
-brain and body dynamics during shot execution. Ghost overlays and average frame
-composites offer intuitive visual summaries of shooting form variability. These
-results provide a foundation for larger-scale data collection and more rigorous
-hypothesis testing.
+This multi-block session demonstrates that the FreethrowEEG system can
+successfully record and analyse EEG band power during free-throw shooting with
+a portable Muse headset under real experimental conditions. With %%NTOTAL%%
+valid shots, this represents a substantial step up from the initial 10-shot
+pilot, providing more robust estimates of band-power differences between made
+and missed shots. %%CONCLUSION_EXTRA%% The addition of video-based pose
+estimation provides a complementary kinematic dimension, enabling time-aligned
+analysis of brain and body dynamics during shot execution. Ghost overlays and
+average frame composites offer intuitive visual summaries of shooting form
+variability. These results provide a foundation for larger-scale data
+collection with multiple participants and more rigorous hypothesis testing.
 
 \end{document}

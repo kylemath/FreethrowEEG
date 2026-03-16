@@ -1,6 +1,9 @@
 """
 FreethrowEEG Report Generator
 Runs the analysis, populates the LaTeX template with results, and compiles to PDF.
+
+Supports multi-block sessions (3 blocks of 40 shots with data quality filtering
+and user-specified exclusions).
 """
 
 import json
@@ -174,10 +177,14 @@ def build_poseeeg_interp(stats):
 def build_discussion(stats):
     paragraphs = []
 
+    n_blocks = stats.get('n_blocks', 1)
+    block_desc = f"across {n_blocks} blocks" if n_blocks > 1 else "in a single session"
     paragraphs.append(
-        f"This pilot session ({stats['n_total']} shots, {stats['shooting_pct']:.0f}\\% accuracy) "
-        f"provides an initial demonstration that the FreethrowEEG system can capture "
-        f"frequency-band-specific EEG dynamics during free-throw shooting."
+        f"This session ({stats['n_total']} analysed shots {block_desc}, "
+        f"{stats['shooting_pct']:.0f}\\% accuracy) "
+        f"demonstrates that the FreethrowEEG system can capture "
+        f"frequency-band-specific EEG dynamics during free-throw shooting "
+        f"using a portable Muse~2 headset with real EEG data."
     )
 
     notable = []
@@ -190,13 +197,14 @@ def build_discussion(stats):
         paragraphs.append(
             f"Medium-to-large effect sizes were observed for pre-shot power in "
             f"{', '.join(band_strs)}, suggesting these bands may carry "
-            f"performance-relevant information even in a small sample."
+            f"performance-relevant information."
         )
     else:
         paragraphs.append(
             "Effect sizes for pre-shot band power differences were generally "
-            "small, consistent with the limited statistical power of a single "
-            "10-shot session."
+            "small. With {0} shots across {1} blocks, statistical power remains "
+            "limited, though substantially improved over the initial pilot.".format(
+                stats['n_total'], stats.get('n_blocks', 1))
         )
 
     ta = stats['theta_alpha']
@@ -248,9 +256,43 @@ def build_conclusion_extra(stats):
     )
 
 
+def _build_block_summary(stats):
+    """Build a description of the multi-block session structure."""
+    block_info = stats.get('block_info', {})
+    if not block_info:
+        return ""
+    parts = []
+    for bnum in sorted(block_info.keys(), key=lambda x: int(x)):
+        bi = block_info[bnum]
+        bnum_int = int(bnum)
+        has_video = bi.get('has_video', False)
+        valid = bi.get('valid_shots', 0)
+        excluded = bi.get('excluded_shots', 0)
+        invalid = bi.get('invalid_shots', 0)
+        total = bi.get('total_shots_in_block', 0)
+        video_str = "with video" if has_video else "no video"
+        parts.append(
+            f"Block~{bnum_int}: {valid} analysed of {total} shots "
+            f"({excluded} excluded, {invalid} invalid EEG; {video_str})"
+        )
+    return "; ".join(parts) + "."
+
+
 def populate_template(template_path, stats, output_tex_path):
     with open(template_path) as f:
         tex = f.read()
+
+    n_blocks = stats.get('n_blocks', 1)
+    block_summary = _build_block_summary(stats)
+    n_video_shots = stats.get('n_video_shots', 'N/A')
+
+    abstract_extra = ""
+    if n_blocks > 1:
+        abstract_extra = (
+            f"Data were collected across {n_blocks} blocks of 40 shots each. "
+            f"After data quality screening and exclusion of experimenter-flagged "
+            f"trials, {stats['n_total']} shots were retained for EEG analysis."
+        )
 
     replacements = {
         '%%DATE%%': datetime.now().strftime('%B %d, %Y'),
@@ -260,7 +302,10 @@ def populate_template(template_path, stats, output_tex_path):
         '%%SHOOTPCT%%': _fmt(stats['shooting_pct'], 0),
         '%%PLAYER%%': stats['player'].replace('_', '\\_'),
         '%%DURATION%%': _fmt(stats['session_duration_min'], 1),
-        '%%ABSTRACT_EXTRA%%': '',
+        '%%NBLOCKS%%': str(n_blocks),
+        '%%BLOCK_SUMMARY%%': block_summary,
+        '%%NVIDEO_SHOTS%%': str(n_video_shots),
+        '%%ABSTRACT_EXTRA%%': abstract_extra,
         '%%STATS_TABLE_ROWS%%': build_stats_table(stats),
         '%%CONTINUOUS_INTERP%%': build_continuous_interp(stats),
         '%%MADEVSMISSED_INTERP%%': build_made_vs_missed_interp(stats),
@@ -319,7 +364,8 @@ def compile_pdf(tex_path):
 
 def main():
     parser = argparse.ArgumentParser(description='Generate FreethrowEEG analysis report')
-    parser.add_argument('data_file', help='Path to session JSON file')
+    parser.add_argument('data_file', nargs='?', default=None,
+                        help='Path to session JSON file (default: load multi-block)')
     parser.add_argument('--output', '-o', default=None, help='Output directory (default: analysis/)')
     parser.add_argument('--skip-compile', action='store_true', help='Skip PDF compilation')
     parser.add_argument('--video-results', default=None,
@@ -343,9 +389,12 @@ def main():
     if video_results_path:
         print(f"\nLoading video analysis results from {video_results_path}...")
         with open(video_results_path) as f:
-            stats['video_analysis'] = json.load(f)
+            video_data = json.load(f)
+            stats['video_analysis'] = video_data
+            stats['n_video_shots'] = video_data.get('n_shots', 0)
     else:
         stats['video_analysis'] = {}
+        stats['n_video_shots'] = 0
 
     print("\nPopulating LaTeX template...")
     template_path = SCRIPT_DIR / 'report_template.tex'

@@ -373,7 +373,8 @@ def _extract_recording_eeg(shot, band):
     if not rec:
         return None, None
     timestamps = np.array([e['timestamp'] for e in rec])
-    power = np.array([e['power'] for e in rec])
+    power_key = 'power' if 'power' in rec[0] else 'value'
+    power = np.array([e[power_key] for e in rec])
     return timestamps - timestamps[0], power
 
 

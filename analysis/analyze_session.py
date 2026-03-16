@@ -2,6 +2,9 @@
 FreethrowEEG Session Analysis
 Loads session JSON, performs signal processing and statistical analysis,
 generates publication-quality figures and summary statistics.
+
+Supports both single-file sessions and multi-block sessions (3 block JSON
+files merged via load_multiblock).
 """
 
 import json
@@ -32,7 +35,19 @@ PHASE_LABELS = {
 }
 
 
-def load_session(filepath):
+def load_session(filepath=None):
+    """Load session data. If filepath is None, loads the multi-block session."""
+    if filepath is None:
+        sys.path.insert(0, str(Path(__file__).parent))
+        from load_multiblock import load_session_multiblock
+        session, _block_info = load_session_multiblock()
+        return session
+    filepath = Path(filepath)
+    if filepath.is_dir():
+        sys.path.insert(0, str(Path(__file__).parent))
+        from load_multiblock import load_session_multiblock
+        session, _block_info = load_session_multiblock()
+        return session
     with open(filepath) as f:
         return json.load(f)
 
@@ -58,18 +73,30 @@ def estimate_fs(timestamps):
 
 # ── Figure 1: Continuous band power with shot markers ────────────────────────
 
+def _get_block_boundaries(session):
+    """Return list of (time, block_num) for block boundary markers."""
+    blocks = session.get('blocks', {})
+    boundaries = []
+    for bnum, binfo in sorted(blocks.items()):
+        offset = binfo.get('time_offset', 0)
+        if offset > 0:
+            boundaries.append((offset, bnum))
+    return boundaries
+
+
 def fig_continuous_power(session, fig_dir):
     """Full-session band power time series with shot onset markers."""
     ts = np.array(session['eegData']['timestamps'])
     bands_data = session['eegData']['bands']
 
     fig, axes = plt.subplots(len(BANDS), 1, figsize=(14, 12), sharex=True)
-    fig.suptitle('Continuous Band Power Over Session', fontsize=14, y=0.98)
+    fig.suptitle('Continuous Band Power Over Session (All Blocks)', fontsize=14, y=0.98)
 
     for ax, band in zip(axes, BANDS):
         power = np.array(bands_data[band])
-        ax.plot(ts, power, color=BAND_COLORS[band], linewidth=0.6, alpha=0.85)
-        ax.set_ylabel(f'{band.capitalize()}\n(μV)', fontsize=9)
+        n = min(len(ts), len(power))
+        ax.plot(ts[:n], power[:n], color=BAND_COLORS[band], linewidth=0.6, alpha=0.85)
+        ax.set_ylabel(f'{band.capitalize()}\n(μV²)', fontsize=9)
         ax.tick_params(labelsize=8)
 
         for shot in session['shots']:
@@ -77,7 +104,14 @@ def fig_continuous_power(session, fig_dir):
             color = '#2ca02c' if shot['success'] else '#d62728'
             ax.axvline(t_shot, color=color, linewidth=1.2, alpha=0.7, linestyle='--')
 
-        ax.set_xlim(ts[0], ts[-1])
+        for btime, bnum in _get_block_boundaries(session):
+            ax.axvline(btime - 5, color='#888888', linewidth=2, alpha=0.4, linestyle=':')
+            if band == 'delta':
+                ax.text(btime - 5, ax.get_ylim()[1] * 0.95 if ax.get_ylim()[1] != 0 else 1,
+                        f'Block {bnum}', fontsize=7, ha='center', color='#888888')
+
+        if len(ts) > 0:
+            ax.set_xlim(ts[0], ts[max(0, n-1)])
 
     axes[-1].set_xlabel('Time (s)', fontsize=10)
 
@@ -85,6 +119,7 @@ def fig_continuous_power(session, fig_dir):
     legend_elements = [
         Line2D([0], [0], color='#2ca02c', linestyle='--', label='Made'),
         Line2D([0], [0], color='#d62728', linestyle='--', label='Missed'),
+        Line2D([0], [0], color='#888888', linestyle=':', label='Block boundary'),
     ]
     axes[0].legend(handles=legend_elements, loc='upper right', fontsize=8)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
@@ -98,9 +133,14 @@ def fig_continuous_power(session, fig_dir):
 
 def fig_raw_filtering(session, fig_dir):
     """Show raw band signals with low-pass, high-pass, and bandpass filtering."""
-    ts = np.array(session['eegData']['timestamps'])
-    raw_bands = session['eegData']['rawBands']
-    fs = estimate_fs(ts)
+    raw_bands = session['eegData'].get('rawBands', session['eegData'].get('bands', {}))
+    raw_ts = session['eegData'].get('rawTimestamps')
+    if raw_ts:
+        ts = np.array(raw_ts)
+    else:
+        ts = np.array(session['eegData']['timestamps'])
+
+    fs = estimate_fs(ts) if len(ts) > 1 else session.get('sampleRate', 256)
 
     window_start_idx = 0
     window_end_idx = min(len(ts), int(60 * fs))
@@ -317,6 +357,8 @@ def fig_theta_alpha_ratio(session, fig_dir):
     ts = np.array(session['eegData']['timestamps'])
     theta_power = np.array(session['eegData']['bands']['theta'])
     alpha_power = np.array(session['eegData']['bands']['alpha'])
+    n = min(len(ts), len(theta_power), len(alpha_power))
+    ts, theta_power, alpha_power = ts[:n], theta_power[:n], alpha_power[:n]
     ratio = theta_power / np.clip(alpha_power, 1e-6, None)
 
     fig, axes = plt.subplots(2, 1, figsize=(14, 8))
@@ -414,14 +456,19 @@ def fig_shot_raster(session, fig_dir):
     """Visual overview: session timeline with shaded shot phases and outcomes."""
     ts = np.array(session['eegData']['timestamps'])
     alpha_power = np.array(session['eegData']['bands']['alpha'])
+    n = min(len(ts), len(alpha_power))
+    ts, alpha_power = ts[:n], alpha_power[:n]
 
     fig, ax = plt.subplots(figsize=(14, 4))
-    ax.plot(ts, alpha_power, color='#2ca02c', linewidth=0.4, alpha=0.5, label='Alpha power')
+    if n > 0:
+        ax.plot(ts, alpha_power, color='#2ca02c', linewidth=0.4, alpha=0.5, label='Alpha power')
 
     phase_colors = {
         'prep': '#ffffcc', 'preShot': '#c7e9b4', 'recording': '#41b6c4',
         'postShot': '#fed976', 'review': '#e0e0e0'
     }
+
+    ylim_top = np.percentile(alpha_power, 95) if n > 0 else 100
 
     for shot in session['shots']:
         for phase_name in PHASE_ORDER:
@@ -433,8 +480,10 @@ def fig_shot_raster(session, fig_dir):
                 continue
             t_start = any_band[0]['timestamp']
             t_end = any_band[-1]['timestamp']
-            rect = Rectangle((t_start, ax.get_ylim()[0] if ax.get_ylim()[0] != 0 else 0),
-                              t_end - t_start, 200,
+            if t_end <= t_start:
+                continue
+            rect = Rectangle((t_start, 0),
+                              t_end - t_start, ylim_top,
                               facecolor=phase_colors.get(phase_name, '#cccccc'),
                               alpha=0.3, edgecolor='none')
             ax.add_patch(rect)
@@ -443,14 +492,20 @@ def fig_shot_raster(session, fig_dir):
         color = '#2ca02c' if shot['success'] else '#d62728'
         symbol = '✓' if shot['success'] else '✗'
         ax.axvline(t_shot, color=color, linewidth=1.5, alpha=0.7)
-        ax.text(t_shot, ax.get_ylim()[1] * 0.95 if ax.get_ylim()[1] != 0 else 50,
+        ax.text(t_shot, ylim_top * 0.95,
                 f'S{shot["shotNumber"]}{symbol}',
-                fontsize=7, ha='center', color=color, fontweight='bold')
+                fontsize=5, ha='center', color=color, fontweight='bold', rotation=90)
+
+    for btime, bnum in _get_block_boundaries(session):
+        ax.axvline(btime - 5, color='#888888', linewidth=2, alpha=0.4, linestyle=':')
+        ax.text(btime - 5, ylim_top * 0.5, f'B{bnum}', fontsize=8, ha='center',
+                color='#888888', fontweight='bold')
 
     ax.set_xlabel('Time (s)', fontsize=10)
-    ax.set_ylabel('Alpha Power (μV)', fontsize=10)
-    ax.set_title('Session Timeline with Shot Phases', fontsize=12)
-    ax.set_xlim(ts[0], ts[-1])
+    ax.set_ylabel('Alpha Power (μV²)', fontsize=10)
+    ax.set_title('Session Timeline with Shot Phases (All Blocks)', fontsize=12)
+    if n > 0:
+        ax.set_xlim(ts[0], ts[-1])
     plt.tight_layout()
     path = fig_dir / 'fig_shot_raster.pdf'
     fig.savefig(path, dpi=150, bbox_inches='tight')
@@ -464,14 +519,17 @@ def compute_statistics(session):
     """Compute descriptive and inferential stats for the report."""
     made = [s for s in session['shots'] if s['success']]
     missed = [s for s in session['shots'] if not s['success']]
+    n_total = session.get('totalShots', len(session['shots']))
     stats = {
-        'n_total': session['totalShots'],
+        'n_total': n_total,
         'n_made': len(made),
         'n_missed': len(missed),
-        'shooting_pct': len(made) / session['totalShots'] * 100,
-        'session_duration_min': session['sessionDuration'] / 60,
-        'player': session['playerName'],
+        'shooting_pct': len(made) / max(n_total, 1) * 100,
+        'session_duration_min': session.get('sessionDuration', 0) / 60,
+        'player': session.get('playerName', 'Unknown'),
         'band_stats': {},
+        'n_blocks': session.get('n_blocks', 1),
+        'block_info': session.get('blocks', {}),
     }
 
     for band in BANDS:
@@ -551,8 +609,7 @@ def compute_statistics(session):
 
 # ── Main runner ──────────────────────────────────────────────────────────────
 
-def run_analysis(data_path, output_dir=None):
-    data_path = Path(data_path)
+def run_analysis(data_path=None, output_dir=None):
     if output_dir is None:
         output_dir = Path(__file__).parent
     else:
@@ -560,13 +617,18 @@ def run_analysis(data_path, output_dir=None):
     fig_dir = output_dir / 'figures'
     fig_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading session data from {data_path}...")
+    if data_path is not None:
+        data_path = Path(data_path)
+        print(f"Loading session data from {data_path}...")
+    else:
+        print("Loading multi-block session data...")
     session = load_session(data_path)
-    print(f"  Player: {session['playerName']}")
-    print(f"  Shots: {session['totalShots']}  "
-          f"({sum(1 for s in session['shots'] if s['success'])} made, "
-          f"{sum(1 for s in session['shots'] if not s['success'])} missed)")
-    print(f"  Duration: {session['sessionDuration']:.1f}s")
+    n_made = sum(1 for s in session['shots'] if s['success'])
+    n_missed = sum(1 for s in session['shots'] if not s['success'])
+    print(f"  Player: {session.get('playerName', 'Unknown')}")
+    print(f"  Shots: {session.get('totalShots', len(session['shots']))}  "
+          f"({n_made} made, {n_missed} missed)")
+    print(f"  Duration: {session.get('sessionDuration', 0):.1f}s")
 
     print("\nGenerating figures...")
     figures = {}
@@ -600,7 +662,8 @@ def run_analysis(data_path, output_dir=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Analyze FreethrowEEG session')
-    parser.add_argument('data_file', help='Path to session JSON file')
+    parser.add_argument('data_file', nargs='?', default=None,
+                        help='Path to session JSON file (default: load multi-block session)')
     parser.add_argument('--output', '-o', default=None, help='Output directory')
     args = parser.parse_args()
     run_analysis(args.data_file, args.output)

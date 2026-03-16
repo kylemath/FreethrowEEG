@@ -69,7 +69,9 @@ def get_shot_times(session):
             all_timestamps = []
             for band_data in phase_data.values():
                 if isinstance(band_data, list):
-                    all_timestamps.extend(e['timestamp'] for e in band_data if 'timestamp' in e)
+                    for e in band_data:
+                        if isinstance(e, dict) and 'timestamp' in e:
+                            all_timestamps.append(e['timestamp'])
             if all_timestamps:
                 phases[phase_name] = {
                     'start_time': min(all_timestamps),

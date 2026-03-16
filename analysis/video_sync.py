@@ -2,10 +2,13 @@
 FreethrowEEG Video Synchronization
 Synchronizes video with session JSON data, extracts per-shot clips,
 key frames, and film-strip montages.
+
+Supports both legacy single-session JSON and multi-block sessions.
 """
 
 import json
 import argparse
+import sys
 import numpy as np
 import cv2
 import matplotlib
@@ -17,7 +20,18 @@ PHASE_ORDER = ['prep', 'preShot', 'recording', 'postShot', 'review']
 CLIP_PAD_S = 2.0
 
 
-def load_session(filepath):
+def load_session(filepath=None):
+    if filepath is None:
+        sys.path.insert(0, str(Path(__file__).parent))
+        from load_multiblock import load_session_multiblock
+        session, _block_info = load_session_multiblock()
+        return session
+    filepath = Path(filepath)
+    if filepath.is_dir():
+        sys.path.insert(0, str(Path(__file__).parent))
+        from load_multiblock import load_session_multiblock
+        session, _block_info = load_session_multiblock()
+        return session
     with open(filepath) as f:
         return json.load(f)
 
@@ -30,14 +44,16 @@ def _phase_timestamps(shot, phase):
     for band in phase_data:
         entries = phase_data[band]
         if entries:
-            return sorted(e['timestamp'] for e in entries)
+            ts_key = 'timestamp'
+            return sorted(e[ts_key] for e in entries if ts_key in e)
     return []
 
 
-# ── 1. Shot timing extraction ───────────────────────────────────────────────
-
-def get_shot_times(session):
+def get_shot_times(session, time_offset=0.0):
     """Extract timing info for every shot from the session JSON.
+
+    time_offset is subtracted from all timestamps to convert global merged
+    timestamps back to block-local video time.
 
     Returns a list of dicts with keys:
         shot_number, success, prep_start, recording_start, recording_end,
@@ -48,7 +64,7 @@ def get_shot_times(session):
         info = {
             'shot_number': shot['shotNumber'],
             'success': shot['success'],
-            'duration': shot['duration'],
+            'duration': shot.get('duration', 0) - time_offset,
             'prep_start': None,
             'recording_start': None,
             'recording_end': None,
@@ -57,17 +73,17 @@ def get_shot_times(session):
 
         prep_ts = _phase_timestamps(shot, 'prep')
         if prep_ts:
-            info['prep_start'] = prep_ts[0]
+            info['prep_start'] = prep_ts[0] - time_offset
 
         rec_ts = _phase_timestamps(shot, 'recording')
         if rec_ts:
-            info['recording_start'] = rec_ts[0]
-            info['recording_end'] = rec_ts[-1]
+            info['recording_start'] = rec_ts[0] - time_offset
+            info['recording_end'] = rec_ts[-1] - time_offset
 
         for phase in reversed(PHASE_ORDER):
             ts = _phase_timestamps(shot, phase)
             if ts:
-                info['shot_end'] = ts[-1]
+                info['shot_end'] = ts[-1] - time_offset
                 break
 
         shot_times.append(info)
@@ -297,9 +313,12 @@ def create_filmstrip(frames, labels, output_path, title=""):
 
 # ── 5. Main coordinator ────────────────────────────────────────────────────
 
-def run_sync(data_path, video_path, output_dir=None):
-    """Load session, extract shot times, clips, frames, and montages."""
-    data_path = Path(data_path)
+def run_sync(data_path, video_path, output_dir=None, session=None,
+             shot_times=None):
+    """Load session, extract shot times, clips, frames, and montages.
+
+    If session and shot_times are provided, skips loading from data_path.
+    """
     video_path = Path(video_path)
 
     if output_dir is None:
@@ -309,22 +328,31 @@ def run_sync(data_path, video_path, output_dir=None):
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading session from {data_path}")
-    session = load_session(data_path)
-    print(f"  Player: {session['playerName']}")
-    print(f"  Shots: {session['totalShots']}  "
-          f"({sum(1 for s in session['shots'] if s['success'])} made, "
-          f"{sum(1 for s in session['shots'] if not s['success'])} missed)")
-    print(f"  Session duration: {session['sessionDuration']:.1f}s")
+    if session is None:
+        data_path = Path(data_path)
+        print(f"Loading session from {data_path}")
+        session = load_session(data_path)
 
-    print("\nExtracting shot times...")
-    shot_times = get_shot_times(session)
+    n_made = sum(1 for s in session['shots'] if s['success'])
+    n_missed = sum(1 for s in session['shots'] if not s['success'])
+    print(f"  Player: {session.get('playerName', 'Unknown')}")
+    print(f"  Shots: {len(session['shots'])} ({n_made} made, {n_missed} missed)")
+    print(f"  Session duration: {session.get('sessionDuration', 0):.1f}s")
+
+    if shot_times is None:
+        print("\nExtracting shot times...")
+        shot_times = get_shot_times(session)
+
     for st in shot_times:
         label = 'made' if st['success'] else 'missed'
+        prep = st.get('prep_start')
+        rec_s = st.get('recording_start')
+        rec_e = st.get('recording_end')
+        end = st.get('shot_end')
         print(f"  Shot {st['shot_number']:2d} ({label:6s}): "
-              f"prep={st['prep_start']:.1f}s  "
-              f"rec={st['recording_start']:.1f}–{st['recording_end']:.1f}s  "
-              f"end={st['shot_end']:.1f}s")
+              f"prep={prep:.1f}s  "
+              f"rec={rec_s:.1f}–{rec_e:.1f}s  "
+              f"end={end:.1f}s")
 
     print("\nExtracting clips...")
     extract_shot_clips(video_path, shot_times, output_dir)
