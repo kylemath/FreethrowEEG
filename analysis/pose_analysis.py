@@ -291,6 +291,123 @@ def _estimate_release_frame(sorted_frames, wrist_heights):
     return int(sorted_frames[release_idx])
 
 
+def detect_release_from_full_window(feats, fps=VIDEO_FPS, min_wrist_range=0.08):
+    """Detect the actual shot release from pose features over a wide window.
+
+    Uses a multi-signal approach:
+      1. Smooth the wrist height to suppress noise
+      2. Find the dominant upward excursion (the shot)
+      3. Release = peak of wrist velocity during the upward phase
+
+    Returns (release_idx, release_frame, motion_start_idx, motion_end_idx)
+    or None if no clear shot motion is detected.
+    """
+    if feats is None:
+        return None
+
+    wrist = feats['wrist_height']
+    frames = feats['frames']
+    n = len(wrist)
+    if n < 10:
+        return None
+
+    kernel_size = max(3, int(fps * 0.1))
+    if kernel_size % 2 == 0:
+        kernel_size += 1
+    kernel = np.ones(kernel_size) / kernel_size
+    wrist_smooth = np.convolve(wrist, kernel, mode='same')
+
+    wrist_range = wrist_smooth.max() - wrist_smooth.min()
+    if wrist_range < min_wrist_range:
+        return None
+
+    velocity = np.gradient(wrist_smooth)
+
+    # Find the main upward motion: largest contiguous region of positive velocity
+    # that leads to the global max of wrist height
+    peak_idx = np.argmax(wrist_smooth)
+
+    # Walk backward from peak to find motion start (where velocity first goes > 0)
+    motion_start = peak_idx
+    for i in range(peak_idx - 1, -1, -1):
+        if velocity[i] < 0.0005:
+            motion_start = i + 1
+            break
+    else:
+        motion_start = 0
+
+    # Walk forward from peak to find motion end (where wrist stops descending fast)
+    motion_end = min(peak_idx + int(fps * 1.5), n - 1)
+    for i in range(peak_idx + 1, min(peak_idx + int(fps * 2), n)):
+        if velocity[i] > -0.0005 and i > peak_idx + int(fps * 0.3):
+            motion_end = i
+            break
+
+    # Release = max upward velocity while wrist is high (top 40% of its range)
+    height_thresh = wrist_smooth.min() + 0.6 * wrist_range
+    search_start = max(0, motion_start)
+    search_end = min(n, peak_idx + int(fps * 0.5))
+    high_mask = wrist_smooth[search_start:search_end] >= height_thresh
+    vel_slice = velocity[search_start:search_end]
+
+    if np.any(high_mask):
+        masked_vel = np.where(high_mask, vel_slice, -np.inf)
+        release_local = int(np.argmax(masked_vel))
+    else:
+        release_local = peak_idx - search_start
+
+    release_idx = search_start + release_local
+
+    return {
+        'release_idx': int(release_idx),
+        'release_frame': int(frames[release_idx]),
+        'motion_start_idx': int(motion_start),
+        'motion_end_idx': int(motion_end),
+        'peak_idx': int(peak_idx),
+        'wrist_range': float(wrist_range),
+    }
+
+
+def extract_release_aligned_epoch(feats, release_info, fps=VIDEO_FPS,
+                                  pre_sec=2.0, post_sec=2.0):
+    """Extract a fixed-length epoch centered on the detected release.
+
+    Returns a new features dict with timestamps relative to release (t=0).
+    """
+    if feats is None or release_info is None:
+        return None
+
+    release_idx = release_info['release_idx']
+    frames = feats['frames']
+    n = len(frames)
+
+    pre_frames = int(pre_sec * fps)
+    post_frames = int(post_sec * fps)
+
+    start_idx = max(0, release_idx - pre_frames)
+    end_idx = min(n, release_idx + post_frames + 1)
+
+    feature_keys = ['elbow_angle', 'shoulder_angle', 'knee_angle',
+                    'wrist_height', 'center_of_mass_y', 'body_lean_angle',
+                    'body_lean']
+
+    aligned = {
+        'frames': feats['frames'][start_idx:end_idx],
+        'timestamps': (feats['frames'][start_idx:end_idx] - feats['frames'][release_idx]) / fps,
+        'release_idx_in_epoch': release_idx - start_idx,
+        'release_frame': release_info['release_frame'],
+        'motion_start_idx': max(0, release_info['motion_start_idx'] - start_idx),
+        'motion_end_idx': min(end_idx - start_idx, release_info['motion_end_idx'] - start_idx),
+        'wrist_range': release_info['wrist_range'],
+    }
+
+    for key in feature_keys:
+        if key in feats:
+            aligned[key] = feats[key][start_idx:end_idx]
+
+    return aligned
+
+
 # ── Made vs missed comparison ────────────────────────────────────────────────
 
 def compare_made_vs_missed(all_features, shot_times):

@@ -27,6 +27,8 @@ from pose_analysis import (
     _save_annotated_keyframes,
     _features_to_serialisable,
     _comparison_to_serialisable,
+    detect_release_from_full_window,
+    extract_release_aligned_epoch,
     VIDEO_FPS,
 )
 from video_figures import generate_all_figures
@@ -36,7 +38,11 @@ from load_multiblock import (
 
 
 def _build_video_figures_pose_data(all_features, pose_results, fps):
-    """Convert pose_analysis output into the format video_figures expects."""
+    """Convert pose_analysis output into the format video_figures expects.
+
+    Handles both release-aligned features (with timestamps relative to release)
+    and legacy recording-window features.
+    """
     converted = {}
     for sn, feats in all_features.items():
         if feats is None:
@@ -44,24 +50,37 @@ def _build_video_figures_pose_data(all_features, pose_results, fps):
             continue
 
         frames = feats['frames']
-        if len(frames) > 0:
+        if 'timestamps' in feats and hasattr(feats['timestamps'], '__len__'):
+            ts = np.asarray(feats['timestamps'])
+        elif len(frames) > 0:
             ts = (frames - frames[0]) / fps
         else:
             ts = np.array([])
 
         entry = {
-            'timestamps': ts.tolist(),
-            'elbow_angle': feats['elbow_angle'].tolist(),
-            'wrist_height': feats['wrist_height'].tolist(),
-            'knee_angle': feats['knee_angle'].tolist(),
-            'body_lean': feats['body_lean_angle'].tolist(),
-            'shoulder_angle': feats['shoulder_angle'].tolist(),
-            'center_of_mass_y': feats['center_of_mass_y'].tolist(),
+            'timestamps': ts.tolist() if hasattr(ts, 'tolist') else list(ts),
+            'elbow_angle': feats['elbow_angle'].tolist() if hasattr(feats['elbow_angle'], 'tolist') else list(feats['elbow_angle']),
+            'wrist_height': feats['wrist_height'].tolist() if hasattr(feats['wrist_height'], 'tolist') else list(feats['wrist_height']),
+            'knee_angle': feats['knee_angle'].tolist() if hasattr(feats['knee_angle'], 'tolist') else list(feats['knee_angle']),
+            'body_lean': feats.get('body_lean_angle', feats.get('body_lean', [])),
+            'shoulder_angle': feats.get('shoulder_angle', []),
+            'center_of_mass_y': feats.get('center_of_mass_y', []),
             'release_frame': feats.get('release_frame'),
+            'release_idx_in_epoch': feats.get('release_idx_in_epoch'),
+            'wrist_range': feats.get('wrist_range'),
         }
+        for k in ('body_lean', 'shoulder_angle', 'center_of_mass_y'):
+            v = entry[k]
+            if hasattr(v, 'tolist'):
+                entry[k] = v.tolist()
+            elif not isinstance(v, list):
+                entry[k] = list(v) if v is not None else []
 
+        # Attach raw landmarks from both recording and full_window
         rec_lm = pose_results.get(sn, {}).get('recording', {})
-        entry['raw_landmarks'] = {str(k): v.tolist() for k, v in rec_lm.items()}
+        full_lm = pose_results.get(sn, {}).get('full_window', {})
+        lm_source = rec_lm if rec_lm else full_lm
+        entry['raw_landmarks'] = {str(k): v.tolist() for k, v in lm_source.items()}
 
         converted[sn] = entry
 
@@ -177,18 +196,49 @@ def run_pipeline(data_path=None, video_path=None, output_dir=None,
         fps = cap_for_fps.get(__import__('cv2').CAP_PROP_FPS) or VIDEO_FPS
         cap_for_fps.release()
 
-        print(f"\n  Extracting biomechanical features...")
+        print(f"\n  Extracting biomechanical features (full window)...")
+        block_features_full = {}
         block_features = {}
+        n_aligned = 0
+        n_fallback = 0
         for st in block_shot_times:
             sn = st['shot_number']
             shot_data = pose_results.get(sn, {})
-            lm_seq = shot_data.get('recording', {})
-            if not lm_seq:
-                lm_seq = shot_data.get('full_window', {})
-            feats = extract_pose_features(lm_seq)
-            block_features[sn] = feats
-            n_frames = len(feats['frames']) if feats else 0
-            print(f"    Shot {sn}: {'OK' if feats else 'no pose data'} ({n_frames} frames)")
+
+            # Use full_window (prep→review) for feature extraction
+            lm_full = shot_data.get('full_window', {})
+            lm_rec = shot_data.get('recording', {})
+
+            feats_full = extract_pose_features(lm_full) if lm_full else None
+            block_features_full[sn] = feats_full
+
+            release_info = detect_release_from_full_window(feats_full, fps)
+
+            if release_info is not None:
+                aligned = extract_release_aligned_epoch(
+                    feats_full, release_info, fps,
+                    pre_sec=2.0, post_sec=2.0
+                )
+                aligned['release_frame'] = release_info['release_frame']
+                block_features[sn] = aligned
+                n_aligned += 1
+                n_full = len(feats_full['frames']) if feats_full else 0
+                n_epoch = len(aligned['frames'])
+                print(f"    Shot {sn}: full={n_full}fr, release-aligned={n_epoch}fr "
+                      f"(wrist_range={release_info['wrist_range']:.3f})")
+            else:
+                # Fallback to recording-window features
+                feats_rec = extract_pose_features(lm_rec) if lm_rec else None
+                block_features[sn] = feats_rec
+                n_fallback += 1
+                n_frames = len(feats_rec['frames']) if feats_rec else 0
+                wr = (max(feats_rec['wrist_height']) - min(feats_rec['wrist_height'])
+                      ) if feats_rec and len(feats_rec['wrist_height']) > 0 else 0
+                print(f"    Shot {sn}: no clear release detected, "
+                      f"fallback to recording window ({n_frames}fr, "
+                      f"wrist_range={wr:.3f})")
+
+        print(f"\n  Release-aligned: {n_aligned}, fallback: {n_fallback}")
 
         combined_pose_results.update(pose_results)
         combined_features.update(block_features)

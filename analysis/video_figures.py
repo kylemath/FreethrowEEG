@@ -288,7 +288,7 @@ def fig_ghost_overlay(session, shot_times, pose_features, video_path, fig_dir):
 # ── Figure 11: Pose Kinematics Trajectories ─────────────────────────────────
 
 def fig_pose_kinematics(session, shot_times, pose_features, fig_dir):
-    """Time-series of biomechanical features during recording, made vs missed."""
+    """Time-series of biomechanical features, release-aligned, made vs missed."""
     features = [
         ('elbow_angle', 'Elbow Angle (°)'),
         ('wrist_height', 'Wrist Height (norm.)'),
@@ -300,13 +300,29 @@ def fig_pose_kinematics(session, shot_times, pose_features, fig_dir):
     made_nums = {s['shotNumber'] for s in shots if s['success']}
     missed_nums = {s['shotNumber'] for s in shots if not s['success']}
 
-    durations = [st['recording_end'] - st['recording_start'] for st in shot_times]
-    max_dur = max(durations) if durations else 3.0
-    common_t = np.linspace(0, max_dur, 100)
-    t_release = max_dur * 0.6
+    # Determine if data is release-aligned (timestamps span negative to positive)
+    has_release_aligned = False
+    for sdata in pose_features.values():
+        ts = sdata.get('timestamps', [])
+        if ts and min(ts) < -0.5:
+            has_release_aligned = True
+            break
+
+    if has_release_aligned:
+        common_t = np.linspace(-2.0, 2.0, 120)
+        t_release = 0.0
+        xlabel = 'Time relative to release (s)'
+        title_suffix = '(Release-Aligned)'
+    else:
+        durations = [st['recording_end'] - st['recording_start'] for st in shot_times]
+        max_dur = max(durations) if durations else 3.0
+        common_t = np.linspace(0, max_dur, 100)
+        t_release = max_dur * 0.6
+        xlabel = 'Time from recording start (s)'
+        title_suffix = ''
 
     fig, axes = plt.subplots(len(features), 1, figsize=(10, 12), sharex=True)
-    fig.suptitle('Figure 11 — Pose Kinematics During Shot Execution',
+    fig.suptitle(f'Figure 11 — Pose Kinematics During Shot Execution {title_suffix}',
                  fontsize=14, y=0.98)
 
     for ax, (feat_key, feat_label) in zip(axes, features):
@@ -355,9 +371,10 @@ def fig_pose_kinematics(session, shot_times, pose_features, fig_dir):
         if ax is axes[0]:
             ax.legend(fontsize=8, loc='upper right')
 
-    axes[0].annotate('Est. release', xy=(t_release, 1), xycoords=('data', 'axes fraction'),
+    release_label = 'Release (t=0)' if has_release_aligned else 'Est. release'
+    axes[0].annotate(release_label, xy=(t_release, 1), xycoords=('data', 'axes fraction'),
                      fontsize=7, ha='center', va='bottom', color='gray')
-    axes[-1].set_xlabel('Time from recording start (s)', fontsize=10)
+    axes[-1].set_xlabel(xlabel, fontsize=10)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     path = fig_dir / 'fig_pose_kinematics.pdf'
     fig.savefig(path, dpi=150, bbox_inches='tight')
@@ -378,15 +395,59 @@ def _extract_recording_eeg(shot, band):
     return timestamps - timestamps[0], power
 
 
+def _extract_multiphase_eeg(shot, band):
+    """Return (time_relative_to_rec_start, power) arrays spanning
+    preShot + recording + postShot phases.
+
+    Timestamps are relative to the start of the recording phase so that
+    pre-shot data appears at negative times and post-shot at positive times.
+    """
+    eeg = shot.get('eegData', {})
+
+    rec_entries = eeg.get('recording', {}).get(band, [])
+    if not rec_entries:
+        return None, None
+
+    power_key = 'power' if 'power' in rec_entries[0] else 'value'
+    rec_t0 = rec_entries[0]['timestamp']
+
+    all_t = []
+    all_p = []
+    for phase in ('preShot', 'recording', 'postShot'):
+        entries = eeg.get(phase, {}).get(band, [])
+        if not entries:
+            continue
+        pk = 'power' if 'power' in entries[0] else 'value'
+        for e in entries:
+            all_t.append(e['timestamp'] - rec_t0)
+            all_p.append(e[pk])
+
+    if not all_t:
+        return None, None
+
+    order = np.argsort(all_t)
+    return np.array(all_t)[order], np.array(all_p)[order]
+
+
 def fig_pose_eeg_combined(session, shot_times, pose_features, fig_dir):
     """Multi-panel figure aligning pose kinematics with EEG during execution."""
     shots = session['shots']
     made_nums = {s['shotNumber'] for s in shots if s['success']}
     missed_nums = {s['shotNumber'] for s in shots if not s['success']}
 
-    durations = [st['recording_end'] - st['recording_start'] for st in shot_times]
-    max_dur = max(durations) if durations else 3.0
-    common_t = np.linspace(0, max_dur, 100)
+    has_release_aligned = False
+    for sdata in pose_features.values():
+        ts = sdata.get('timestamps', [])
+        if ts and min(ts) < -0.5:
+            has_release_aligned = True
+            break
+
+    if has_release_aligned:
+        common_t = np.linspace(-2.0, 2.0, 120)
+    else:
+        durations = [st['recording_end'] - st['recording_start'] for st in shot_times]
+        max_dur = max(durations) if durations else 3.0
+        common_t = np.linspace(0, max_dur, 100)
 
     panels = [
         ('elbow_angle',       'Elbow Angle (°)',   'pose'),
@@ -419,15 +480,15 @@ def fig_pose_eeg_combined(session, shot_times, pose_features, fig_dir):
         else:
             for shot in shots:
                 if key == 'theta_alpha_ratio':
-                    t_th, p_th = _extract_recording_eeg(shot, 'theta')
-                    t_al, p_al = _extract_recording_eeg(shot, 'alpha')
+                    t_th, p_th = _extract_multiphase_eeg(shot, 'theta')
+                    t_al, p_al = _extract_multiphase_eeg(shot, 'alpha')
                     if t_th is None or t_al is None:
                         continue
                     iv = (np.interp(common_t, t_th, p_th, left=np.nan, right=np.nan)
                           / np.clip(np.interp(common_t, t_al, p_al,
                                               left=np.nan, right=np.nan), 1e-6, None))
                 else:
-                    t_eeg, p_eeg = _extract_recording_eeg(shot, key)
+                    t_eeg, p_eeg = _extract_multiphase_eeg(shot, key)
                     if t_eeg is None:
                         continue
                     iv = np.interp(common_t, t_eeg, p_eeg,
@@ -461,7 +522,7 @@ def fig_pose_eeg_combined(session, shot_times, pose_features, fig_dir):
             pv = sd.get(pk, [])
             if not pv:
                 continue
-            t_eeg, p_eeg = _extract_recording_eeg(shot, 'alpha')
+            t_eeg, p_eeg = _extract_multiphase_eeg(shot, 'alpha')
             if t_eeg is None:
                 continue
             pose_vals.append(np.nanmean(pv))

@@ -1,92 +1,326 @@
 [
   {
-    "shot_number": 1,
-    "success": false,
-    "duration": 45.866,
-    "prep_start": 19.521,
-    "recording_start": 34.756,
-    "recording_end": 37.504,
-    "shot_end": 45.753
-  },
-  {
-    "shot_number": 2,
-    "success": false,
-    "duration": 76.598,
-    "prep_start": 46.755,
-    "recording_start": 61.752,
-    "recording_end": 64.505,
-    "shot_end": 76.507
-  },
-  {
-    "shot_number": 3,
-    "success": false,
-    "duration": 109.499,
-    "prep_start": 77.752,
-    "recording_start": 92.754,
-    "recording_end": 95.504,
-    "shot_end": 109.252
-  },
-  {
-    "shot_number": 4,
-    "success": false,
-    "duration": 138.982,
-    "prep_start": 110.253,
-    "recording_start": 125.253,
-    "recording_end": 128.002,
-    "shot_end": 138.751
-  },
-  {
-    "shot_number": 5,
-    "success": false,
-    "duration": 171.865,
-    "prep_start": 140.002,
-    "recording_start": 155.003,
-    "recording_end": 157.751,
-    "shot_end": 171.757
-  },
-  {
-    "shot_number": 6,
+    "shot_number": 43,
     "success": true,
-    "duration": 205.765,
-    "prep_start": 172.752,
-    "recording_start": 187.752,
-    "recording_end": 190.501,
-    "shot_end": 205.752
+    "duration": 26.859375,
+    "prep_start": 11.859375,
+    "recording_start": 26.859375,
+    "recording_end": 29.578125,
+    "shot_end": 39.328125
   },
   {
-    "shot_number": 7,
-    "success": false,
-    "duration": 236.377,
-    "prep_start": 206.752,
-    "recording_start": 221.751,
-    "recording_end": 224.502,
-    "shot_end": 236.249
-  },
-  {
-    "shot_number": 8,
-    "success": false,
-    "duration": 272.948,
-    "prep_start": 240.249,
-    "recording_start": 255.25,
-    "recording_end": 258.001,
-    "shot_end": 272.748
-  },
-  {
-    "shot_number": 9,
+    "shot_number": 44,
     "success": true,
-    "duration": 302.765,
-    "prep_start": 273.751,
-    "recording_start": 288.75,
-    "recording_end": 291.498,
-    "shot_end": 302.75
+    "duration": 79.125,
+    "prep_start": 64.078125,
+    "recording_start": 79.125,
+    "recording_end": 81.84375,
+    "shot_end": 87.84375
   },
   {
-    "shot_number": 10,
+    "shot_number": 45,
+    "success": false,
+    "duration": 112.828125,
+    "prep_start": 97.828125,
+    "recording_start": 112.828125,
+    "recording_end": 115.59375,
+    "shot_end": 125.34375
+  },
+  {
+    "shot_number": 46,
     "success": true,
-    "duration": 332.331,
-    "prep_start": 303.5,
-    "recording_start": 318.499,
-    "recording_end": 321.249,
-    "shot_end": 332.248
+    "duration": 146.0625,
+    "prep_start": 131.109375,
+    "recording_start": 146.0625,
+    "recording_end": 148.828125,
+    "shot_end": 162.375
+  },
+  {
+    "shot_number": 47,
+    "success": false,
+    "duration": 184.59375,
+    "prep_start": 169.59375,
+    "recording_start": 184.59375,
+    "recording_end": 187.3125,
+    "shot_end": 198.328125
+  },
+  {
+    "shot_number": 48,
+    "success": false,
+    "duration": 214.828125,
+    "prep_start": 199.828125,
+    "recording_start": 214.828125,
+    "recording_end": 217.546875,
+    "shot_end": 225.328125
+  },
+  {
+    "shot_number": 49,
+    "success": false,
+    "duration": 249.046875,
+    "prep_start": 234.09375,
+    "recording_start": 249.046875,
+    "recording_end": 251.859375,
+    "shot_end": 260.109375
+  },
+  {
+    "shot_number": 50,
+    "success": false,
+    "duration": 319.359375,
+    "prep_start": 304.359375,
+    "recording_start": 319.359375,
+    "recording_end": 322.078125,
+    "shot_end": 333.328125
+  },
+  {
+    "shot_number": 51,
+    "success": false,
+    "duration": 349.078125,
+    "prep_start": 334.078125,
+    "recording_start": 349.078125,
+    "recording_end": 351.84375,
+    "shot_end": 359.578125
+  },
+  {
+    "shot_number": 52,
+    "success": false,
+    "duration": 384.609375,
+    "prep_start": 369.609375,
+    "recording_start": 384.609375,
+    "recording_end": 387.328125,
+    "shot_end": 501.84375
+  },
+  {
+    "shot_number": 53,
+    "success": false,
+    "duration": 519.375,
+    "prep_start": 504.375,
+    "recording_start": 519.375,
+    "recording_end": 522.09375,
+    "shot_end": 532.078125
+  },
+  {
+    "shot_number": 54,
+    "success": true,
+    "duration": 554.859375,
+    "prep_start": 539.859375,
+    "recording_start": 554.859375,
+    "recording_end": 557.625,
+    "shot_end": 567.328125
+  },
+  {
+    "shot_number": 55,
+    "success": false,
+    "duration": 583.359375,
+    "prep_start": 568.359375,
+    "recording_start": 583.359375,
+    "recording_end": 586.078125,
+    "shot_end": 595.125
+  },
+  {
+    "shot_number": 56,
+    "success": false,
+    "duration": 622.125,
+    "prep_start": 607.125,
+    "recording_start": 622.125,
+    "recording_end": 624.84375,
+    "shot_end": 637.359375
+  },
+  {
+    "shot_number": 57,
+    "success": false,
+    "duration": 655.875,
+    "prep_start": 640.875,
+    "recording_start": 655.875,
+    "recording_end": 658.546875,
+    "shot_end": 673.359375
+  },
+  {
+    "shot_number": 58,
+    "success": false,
+    "duration": 690.09375,
+    "prep_start": 675.09375,
+    "recording_start": 690.09375,
+    "recording_end": 692.859375,
+    "shot_end": 701.34375
+  },
+  {
+    "shot_number": 59,
+    "success": true,
+    "duration": 716.859375,
+    "prep_start": 701.859375,
+    "recording_start": 716.859375,
+    "recording_end": 719.625,
+    "shot_end": 727.875
+  },
+  {
+    "shot_number": 60,
+    "success": false,
+    "duration": 751.875,
+    "prep_start": 736.546875,
+    "recording_start": 751.875,
+    "recording_end": 754.59375,
+    "shot_end": 765.09375
+  },
+  {
+    "shot_number": 61,
+    "success": true,
+    "duration": 780.84375,
+    "prep_start": 765.84375,
+    "recording_start": 780.84375,
+    "recording_end": 783.609375,
+    "shot_end": 795.84375
+  },
+  {
+    "shot_number": 62,
+    "success": true,
+    "duration": 899.109375,
+    "prep_start": 884.109375,
+    "recording_start": 899.109375,
+    "recording_end": 901.875,
+    "shot_end": 909.609375
+  },
+  {
+    "shot_number": 63,
+    "success": true,
+    "duration": 932.390625,
+    "prep_start": 917.34375,
+    "recording_start": 932.390625,
+    "recording_end": 935.109375,
+    "shot_end": 943.59375
+  },
+  {
+    "shot_number": 64,
+    "success": true,
+    "duration": 1005.375,
+    "prep_start": 990.328125,
+    "recording_start": 1005.375,
+    "recording_end": 1008.140625,
+    "shot_end": 1018.125
+  },
+  {
+    "shot_number": 65,
+    "success": true,
+    "duration": 1034.109375,
+    "prep_start": 1019.109375,
+    "recording_start": 1034.109375,
+    "recording_end": 1036.875,
+    "shot_end": 1045.828125
+  },
+  {
+    "shot_number": 66,
+    "success": true,
+    "duration": 1069.359375,
+    "prep_start": 1054.359375,
+    "recording_start": 1069.359375,
+    "recording_end": 1072.125,
+    "shot_end": 1081.59375
+  },
+  {
+    "shot_number": 67,
+    "success": false,
+    "duration": 1098.09375,
+    "prep_start": 1083.09375,
+    "recording_start": 1098.09375,
+    "recording_end": 1100.859375,
+    "shot_end": 1112.578125
+  },
+  {
+    "shot_number": 68,
+    "success": false,
+    "duration": 1137.328125,
+    "prep_start": 1122.328125,
+    "recording_start": 1137.328125,
+    "recording_end": 1140.09375,
+    "shot_end": 1147.828125
+  },
+  {
+    "shot_number": 69,
+    "success": true,
+    "duration": 1164.09375,
+    "prep_start": 1149.09375,
+    "recording_start": 1164.09375,
+    "recording_end": 1166.859375,
+    "shot_end": 1174.59375
+  },
+  {
+    "shot_number": 70,
+    "success": false,
+    "duration": 1192.828125,
+    "prep_start": 1177.828125,
+    "recording_start": 1192.828125,
+    "recording_end": 1195.546875,
+    "shot_end": 1204.078125
+  },
+  {
+    "shot_number": 71,
+    "success": false,
+    "duration": 1228.828125,
+    "prep_start": 1213.828125,
+    "recording_start": 1228.828125,
+    "recording_end": 1231.59375,
+    "shot_end": 1240.59375
+  },
+  {
+    "shot_number": 72,
+    "success": true,
+    "duration": 1256.109375,
+    "prep_start": 1241.109375,
+    "recording_start": 1256.109375,
+    "recording_end": 1258.828125,
+    "shot_end": 1273.359375
+  },
+  {
+    "shot_number": 73,
+    "success": true,
+    "duration": 1303.828125,
+    "prep_start": 1288.875,
+    "recording_start": 1303.828125,
+    "recording_end": 1306.59375,
+    "shot_end": 1320.84375
+  },
+  {
+    "shot_number": 74,
+    "success": true,
+    "duration": 1340.859375,
+    "prep_start": 1325.859375,
+    "recording_start": 1340.859375,
+    "recording_end": 1343.578125,
+    "shot_end": 1353.328125
+  },
+  {
+    "shot_number": 75,
+    "success": true,
+    "duration": 1377.84375,
+    "prep_start": 1362.84375,
+    "recording_start": 1377.84375,
+    "recording_end": 1380.609375,
+    "shot_end": 1390.359375
+  },
+  {
+    "shot_number": 76,
+    "success": false,
+    "duration": 1414.59375,
+    "prep_start": 1399.59375,
+    "recording_start": 1414.59375,
+    "recording_end": 1417.359375,
+    "shot_end": 1425.328125
+  },
+  {
+    "shot_number": 77,
+    "success": false,
+    "duration": 1441.828125,
+    "prep_start": 1426.828125,
+    "recording_start": 1441.828125,
+    "recording_end": 1444.59375,
+    "shot_end": 1453.078125
+  },
+  {
+    "shot_number": 78,
+    "success": false,
+    "duration": 1474.03125,
+    "prep_start": 1459.078125,
+    "recording_start": 1474.03125,
+    "recording_end": 1476.84375,
+    "shot_end": 1487.109375
   }
 ]
